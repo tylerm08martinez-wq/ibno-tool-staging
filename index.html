@@ -795,6 +795,55 @@
     #settings-status.show { opacity: 1; }
     #settings-toggle { margin-bottom: 16px; }
 
+    /* ── What's new (STAGING ONLY, #1021) ────────────────────────────────────
+       A right-hand drawer, not a Settings-style block, and the prototype is why
+       (prototypes/1021/, measured in real Chrome): on a 390px phone the two are
+       the same panel (drawer 360px wide, block 358px, identical 371px first
+       note), but at 1280 the block runs its summary paragraphs the full 1248px
+       of content width while the drawer holds a 421px column. These notes are
+       prose, and a 1248px measure is the one thing that makes prose unreadable.
+       The drawer also leaves the work list in place behind it instead of
+       pushing every row down the page.
+
+       NO NEW COLOR TOKENS: the surface, border, radius and shadow are the
+       Settings panel's own values, so dark mode arrives through the same vars
+       (theme-contrast-dom stays green) and a retune of --surface moves both.
+
+       z-index 60 = above the sticky band header (40) and the chips, BELOW the
+       barcode sheet overlay (80) and the theme toggle (95) — this panel must
+       never cover a print dialog the user is mid-way through. */
+    #whats-new-panel {
+      position: fixed; top: 0; right: 0; height: 100%; z-index: 60;
+      width: min(420px, 92vw);
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      box-shadow: -2px 0 12px rgba(0,0,0,0.18);
+      overflow-y: auto;
+      /* Closed = translated off the right edge AND visibility:hidden, so a
+         closed drawer holds no focusable controls. A fixed element does not
+         widen the document, so the off-screen copy cannot add a scrollbar. */
+      transform: translateX(100%);
+      visibility: hidden;
+      transition: transform 0.18s ease-out, visibility 0.18s;
+    }
+    #whats-new-panel.open { transform: none; visibility: visible; }
+    .wn-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    .wn-head h2 { margin: 0; font-size: 15px; color: var(--brand-ink); }
+    .wn-sub { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+    .wn-body { padding: 14px 16px; }
+    .wn-item { border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); padding: 12px 14px; margin-bottom: 12px; }
+    .wn-item h3 { margin: 0 0 6px; font-size: 14px; color: var(--text); }
+    .wn-sum { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+    .wn-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin-bottom: 6px; }
+    .wn-steps { margin: 0 0 8px 18px; padding: 0; font-size: 13px; color: var(--text); }
+    .wn-steps li { margin-bottom: 3px; }
+    .wn-meta { font-size: 11px; color: var(--text-faint); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .wn-meta a { color: var(--brand-ink); }
+    .wn-live summary { font-size: 13px; color: var(--text-muted); cursor: pointer; font-weight: 600; }
+    .wn-live[open] summary { margin-bottom: 10px; }
+    .wn-empty, .wn-error { font-size: 13px; color: var(--text-muted); }
+    .wn-queue { font-size: 12px; margin-top: 4px; }
+
     /* ── Manual review action cell ───────────────────────────────────────────── */
     .action-cell { white-space: nowrap; padding: 6px 12px !important; }
     .code-input-mini {
@@ -3079,6 +3128,9 @@
 </div>
 
 <script src="lib/tool-helpers.js"></script>
+<!-- The release-notes reader (#1020). Shipped in the deploy bundle since #1023;
+     the staging What's new drawer (#1021) is what loads it. -->
+<script src="lib/release-notes.js"></script>
 <script src="lib/csv.js"></script>
 <script src="lib/xlsx.js"></script>
 <script src="lib/spreadsheet.js"></script>
@@ -3230,6 +3282,227 @@ let lastRecurring = {}; // recurring-IBNO map from the last upload, reused on re
 let mergeSeq = 0; // guards a stale merge-file read from landing after a newer merge drop, primary load, or reset (DSW pattern)
 
 // ─── SETTINGS PANEL ───────────────────────────────────────────────────────────
+// ── WHAT'S NEW, STAGING ONLY (#1021, spec #1019) ─────────────────────────────
+//
+// Since #1017 this tool ships to a staging mirror from `main` and to production
+// only when someone promotes `release`. "What is on staging and not yet on the
+// cage PC" was knowable only by reading git, which is not a thing anybody can
+// do at 03:00 in the cage. `release-notes.json` (#1020) is the list; this is
+// the only place Tyler reads it.
+//
+// THE GATE IS FAIL-CLOSED, AND BUILD-INFO WINS OVER EVERYTHING (#1019).
+// An unreleased feature list shown on the cage PC is the exact bug the staging
+// loop exists to prevent, so the order is:
+//
+//   1. build-info.json loaded and parsed  ->  show ONLY if target === 'staging'.
+//      production, other, or a file with no/garbage target: HIDE. A build that
+//      says what it is is believed, and every hosted build says what it is —
+//      scripts/deploy-ibno.sh writes the file from the destination clone's own
+//      push remote, which cannot disagree with where the bytes landed.
+//   2. No build-info at all (missing, 404, network error, bad JSON, or a
+//      browser with no fetch) -> show ONLY on a dev page: file:// or a
+//      localhost host. That is the repo checkout, where there is no deploy to
+//      have written one. Any OTHER host with no build-info hides it.
+//
+// So the dev fallback can never rescue a production build: production HAS a
+// build-info, and it says production. Rule 2 only ever fires where rule 1 has
+// no evidence at all.
+//
+// ONE RESIDUAL LEAK, AND IT IS SPEC-SANCTIONED (#1021 review, LOW): a
+// PRODUCTION bundle opened from file:// — a copied or downloaded build, not the
+// repo checkout — shows the drawer, because Chrome refuses fetch() on a file:
+// origin, so the build-info sitting right beside the page reads as "no
+// build-info". The file: rule cannot tell "repo checkout" from "production
+// bytes on a USB stick", there is no reachable fix, and #1019 asked for the
+// file: rule explicitly. It is not an oversight.
+//
+// THE BUTTON AND THE PANEL ARE BUILT, NOT SHIPPED-AND-HIDDEN (the #1013
+// precedent). On production neither node exists, so there is nothing to go
+// inert, nothing to un-hide with a devtools click, and the DOM test's absence
+// assertion is about a node that genuinely is not there.
+//
+// initWhatsNew() RETURNS ITS PROMISE and takes an optional location, because
+// the gate is asynchronous and a test has to be able to await it and to ask
+// the hosted-page question from a jsdom window whose real protocol is file:.
+// The page itself calls it with neither argument.
+const WHATS_NEW_REPO = 'work';
+
+// The owner is read off DESK_DEFAULT_COORDS rather than written again here.
+// tests/ibno-hosting-dom.test.js refuses the owner login anywhere in the page
+// except that one declaration (and scripts/deploy-ibno.sh excises exactly that
+// substring before its guard greps), so a second literal would fail the build
+// — and a link with no owner is not a link. The repo NAME differs from the
+// desk channel's, so only the login is borrowed.
+function whatsNewRepoUrl(kind, n) {
+  const owner = (typeof DESK_DEFAULT_COORDS === 'object' && DESK_DEFAULT_COORDS && DESK_DEFAULT_COORDS.owner) || '';
+  return 'https://github.com/' + owner + '/' + WHATS_NEW_REPO + '/' + kind + '/' + n;
+}
+
+// Both JSON reads go through here: a missing file, a 404, a dead network and
+// unparseable bytes all land on the same null, because to this panel they are
+// the same fact — "the build did not tell me". Never throws.
+function whatsNewFetchJson(path) {
+  if (typeof fetch !== 'function') return Promise.resolve(null);
+  let p;
+  try { p = fetch(path, { cache: 'no-store' }); }
+  catch (e) { return Promise.resolve(null); }
+  return Promise.resolve(p)
+    .then(function (r) { return r && r.ok ? r.json() : null; })
+    .catch(function () { return null; });
+}
+
+// shouldShowWhatsNew(buildInfo, loc) -> boolean. Pure; the two rules above.
+function shouldShowWhatsNew(buildInfo, loc) {
+  if (buildInfo && typeof buildInfo === 'object') return buildInfo.target === 'staging';
+  const l = loc || {};
+  if (l.protocol === 'file:') return true;
+  const host = String(l.hostname || '');
+  return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '';
+}
+
+function initWhatsNew(loc) {
+  const where = loc || (typeof location !== 'undefined' ? location : {});
+  // Idempotent: tear down first, so a second call with a different verdict
+  // cannot leave yesterday's button behind.
+  const oldBtn = document.getElementById('whats-new-toggle');
+  if (oldBtn && oldBtn.parentNode) oldBtn.parentNode.removeChild(oldBtn);
+  const oldPanel = document.getElementById('whats-new-panel');
+  if (oldPanel && oldPanel.parentNode) oldPanel.parentNode.removeChild(oldPanel);
+
+  return whatsNewFetchJson('build-info.json').then(function (info) {
+    if (typeof document === 'undefined' || !document) return false;  // same in-flight teardown as renderWhatsNew
+    if (!shouldShowWhatsNew(info, where)) return false;
+    mountWhatsNew();
+    return true;
+  });
+}
+
+function mountWhatsNew() {
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-gray';
+  btn.id = 'whats-new-toggle';
+  btn.title = 'What is on this staging build and not yet on the cage PC, and how to see each one';
+  btn.innerHTML = '&#10024; What’s new';
+  btn.onclick = toggleWhatsNew;
+  const anchor = document.getElementById('code-lookup-toggle');
+  if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(btn, anchor.nextSibling);
+  else document.body.appendChild(btn);
+
+  const panel = document.createElement('div');
+  panel.id = 'whats-new-panel';
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-label', 'What is new on this staging build');
+  document.body.appendChild(panel);
+}
+
+function toggleWhatsNew() {
+  const panel = document.getElementById('whats-new-panel');
+  if (!panel) return Promise.resolve(false);
+  if (panel.classList.contains('open')) { panel.classList.remove('open'); return Promise.resolve(false); }
+  panel.classList.add('open');
+  // Re-read on every open rather than caching: on staging the file changes
+  // under the page every time a deploy runs, and a cached list would show the
+  // previous build's notes to someone checking whether the deploy landed.
+  return renderWhatsNew();
+}
+
+function closeWhatsNew() {
+  const panel = document.getElementById('whats-new-panel');
+  if (panel) panel.classList.remove('open');
+}
+
+function renderWhatsNew() {
+  const panel = document.getElementById('whats-new-panel');
+  if (!panel) return Promise.resolve(false);
+  const esc = ToolHelpers.escapeHtml;
+  panel.innerHTML = whatsNewHead('Loading…', '') + '<div class="wn-body"><div class="wn-empty">Reading release notes…</div></div>';
+
+  return whatsNewFetchJson('release-notes.json').then(function (raw) {
+    // The read is in flight for as long as the network takes, and the page can
+    // be gone by the time it lands (a reload, a closed tab — and, in the DOM
+    // test, a closed jsdom window, where an unguarded continuation takes the
+    // whole child process down with it instead of failing an assertion).
+    if (typeof document === 'undefined' || !document) return false;
+    let entries = null;
+    // A file that is there but malformed is NOT shown half-read: parse()
+    // throws on a bad entry and this lands on the same message as a 404. Four
+    // items of seven and "could not load" look identical to a reader, and only
+    // one of them is honest.
+    if (raw) { try { entries = ReleaseNotes.parse(raw); } catch (e) { entries = null; } }
+    if (!entries) {
+      panel.innerHTML = whatsNewHead('Could not load release notes', '') +
+        '<div class="wn-body"><div class="wn-error">Could not load release notes. ' +
+        'The list lives in release-notes.json beside this page.</div></div>';
+      return false;
+    }
+
+    const pending = ReleaseNotes.pending(entries);
+    const live = ReleaseNotes.live(entries);
+    // queueIssue is OPTIONAL (#1022 adds it). Absent today, and an absent
+    // number means no link — not a broken one, and not an error.
+    const q = raw && Number.isInteger(raw.queueIssue) && raw.queueIssue > 0 ? raw.queueIssue : null;
+    const queueLink = q
+      ? '<div class="wn-queue"><a href="' + esc(whatsNewRepoUrl('issues', q)) + '" target="_blank" rel="noopener">' +
+        'Release queue &#35;' + esc(String(q)) + '</a> &mdash; tick what ships next</div>'
+      : '';
+
+    const body = pending.length
+      ? pending.map(whatsNewCard).join('')
+      : '<div class="wn-empty">Nothing is waiting: staging and production match.</div>';
+
+    const liveBlock = '<details class="wn-live"><summary>Already on production (' + live.length + ')</summary>' +
+      (live.length
+        ? live.map(function (e) {
+            return '<div class="wn-meta" style="margin-bottom:6px"><span>' + esc(e.title) + '</span>' +
+              '<span>shipped ' + esc(e.shippedAt) + '</span></div>';
+          }).join('')
+        : '<div class="wn-empty">Nothing on this list has reached production yet.</div>') +
+      '</details>';
+
+    // "In the order they will ship", not "merge order" (#1021 review): the list
+    // is the order `scripts/release-queue.js` resolved from git first-parent
+    // and wrote into each entry as `order`, which is what a checkpoint promote
+    // actually replays. `mergedAt` is day-granular and survives only as the
+    // fallback for an entry git could not place.
+    panel.innerHTML = whatsNewHead(
+      '✨ What’s new on staging',
+      pending.length + ' waiting for production · in the order they will ship') +
+      '<div class="wn-body">' + queueLink + body + liveBlock + '</div>';
+    const close = document.getElementById('whats-new-close');
+    if (close) close.onclick = closeWhatsNew;
+    return true;
+  });
+}
+
+// The panel header. BOTH ARGUMENTS ARE ESCAPED — `title` used to be passed raw
+// because every call site handed it an entity (#1021 review, LOW), and that
+// made this the one function in the block that would inject if a later caller
+// ever handed it note text. The sparkle is now the literal character, so
+// nothing here needs markup to survive.
+function whatsNewHead(title, sub) {
+  const esc = ToolHelpers.escapeHtml;
+  return '<div class="wn-head"><div><h2>' + esc(title) + '</h2>' +
+    (sub ? '<div class="wn-sub">' + esc(sub) + '</div>' : '') +
+    '</div><button class="btn btn-gray" id="whats-new-close" onclick="closeWhatsNew()">Close</button></div>';
+}
+
+// One note. EVERY piece of text here is escaped: the notes are hand-written
+// prose in a JSON file, so an apostrophe or an angle bracket in a summary is
+// ordinary, and none of it may reach innerHTML raw.
+function whatsNewCard(e) {
+  const esc = ToolHelpers.escapeHtml;
+  const steps = (e.howToSee || []).map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('');
+  return '<div class="wn-item" data-pr="' + esc(String(e.pr)) + '">' +
+    '<h3>' + esc(e.title) + '</h3>' +
+    '<div class="wn-sum">' + esc(e.summary) + '</div>' +
+    '<div class="wn-label">How to see it</div>' +
+    '<ol class="wn-steps">' + steps + '</ol>' +
+    '<div class="wn-meta">' +
+      '<span>merged ' + esc(e.mergedAt || 'not yet — in flight') + '</span>' +
+      '<a href="' + esc(whatsNewRepoUrl('pull', e.pr)) + '" target="_blank" rel="noopener">PR &#35;' + esc(String(e.pr)) + '</a>' +
+    '</div></div>';
+}
+
 function toggleSettings() {
   const panel = document.getElementById('settings-panel');
   const open  = panel.style.display === 'block';
@@ -22207,6 +22480,13 @@ refreshDeskSyncStatus();
 // configured before the page loaded.
 startDeskPoll();
 renderDeskHealth();
+
+// The staging-only What's new button (#1021). Asynchronous and fail-closed:
+// nothing is mounted until build-info.json has been read and has said staging
+// (or there is no build-info and this is a dev page). The promise is
+// deliberately not awaited here — the boot must not wait on a network read —
+// and deliberately returned by initWhatsNew so a test can.
+initWhatsNew();
 </script>
 <script>ToolHelpers.pinHeader();</script>
 </body>

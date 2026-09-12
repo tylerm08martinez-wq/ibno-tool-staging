@@ -1,0 +1,201 @@
+{
+  "entries": [
+    {
+      "id": "pr-994",
+      "pr": 994,
+      "issue": 993,
+      "tool": "ibno-coder",
+      "title": "Mark selected rows as done without printing a barcode sheet",
+      "summary": "Both manual lanes get Mark selected as done beside Barcode selected, so rows already assigned to you can be cleared without printing anything. It writes the filed store (ibno_work_area_assigned), NOT BarcodeDone as the ticket specced — BarcodeDone records which cards on a printed sheet were ticked, and this path prints no sheet.",
+      "howToSee": [
+        "Load inbox/Inbound and Van Scans - Full Detail by Date (45).csv",
+        "Tick two rows in Needs Manual Review",
+        "Click Mark selected as done — the confirm panel opens with no barcode sheet",
+        "Confirm: the rows leave the working list and show under Work area assigned"
+      ],
+      "mergedAt": "2026-09-10",
+      "commit": "3b1a86f",
+      "shippedAt": null,
+      "order": 0
+    },
+    {
+      "id": "pr-1004",
+      "pr": 1004,
+      "issue": 998,
+      "tool": "ibno-coder",
+      "title": "Station tab pulls station packages out of Needs Review",
+      "summary": "Packages addressed to the station (23000 N 7th Ave, 85027) leave Manual Review and the progress denominator, and get a fifth Set aside tab. Judgement calls: the alias list ships EMPTY (a speculative alias can only over-match, which silently hides real IBNO work), the zip gate is required so a same-numbered street elsewhere cannot match, and a blank inbound date falls back to the sort day rather than the wall clock because the 1:30 sort crosses midnight.",
+      "howToSee": [
+        "Load inbox/Inbound and Van Scans - Full Detail by Date (45).csv",
+        "Open Set aside and click Station — the badge reads 6",
+        "Check Needs Manual Review: none of those six tracking numbers is in it",
+        "The progress line's denominator excludes them, and a Route 103 neighbour is still in Needs Review"
+      ],
+      "mergedAt": "2026-09-11",
+      "commit": "bc1f21c",
+      "shippedAt": null,
+      "order": 1
+    },
+    {
+      "id": "pr-1008",
+      "pr": 1008,
+      "issue": 999,
+      "tool": "ibno-coder",
+      "title": "The Station pane remembers: delivered, carry-over with an age pill, four counts",
+      "summary": "A day store keyed by tracking number gives the pane a memory — total / delivered / still needing / coded in the header, badge = still needing, an age pill on a carried row. Judgement calls: delivered is DERIVED on every drop and never a stored flag, a reappearing row is open again (the report outranks an inference drawn from silence), the roll prunes delivered and keeps open (the inverse of every other day store here), and the main report reads station rows off a raw-row walk because an already-scanned station package never becomes a manual item.",
+      "howToSee": [
+        "Load inbox/Inbound and Van Scans - Full Detail by Date (45).csv",
+        "Open Set aside then Station — the header reads 6 total / 0 delivered / 6 still needing / 0 coded",
+        "Load a second Post Sort report missing one of those tracking numbers",
+        "That row now shows a delivered mark and the counts move by exactly one; the others do not"
+      ],
+      "mergedAt": "2026-09-11",
+      "commit": "c56db50",
+      "shippedAt": null,
+      "order": 2
+    },
+    {
+      "id": "pr-1009",
+      "pr": 1009,
+      "issue": 1000,
+      "tool": "ibno-coder",
+      "title": "Not ours, To Station, Park and Undo — a per-tracking override store",
+      "summary": "Four manual moves on Station and Needs Review rows, backed by a general per-tracking override store (station / not-station / still-open). Judgement calls: the override beats the address predicate in exactly ONE place (isStationRow), so every reader inherits it instead of restating it; still-open retires on reappearance but only on the Post Sort path, because the main pull carries already-scanned rows and presence there is not evidence; Not ours also drops the day-store entry, or the carry-over would keep the package on screen forever; To Station from a Parked row releases the park.",
+      "howToSee": [
+        "Load inbox/Inbound and Van Scans - Full Detail by Date (45).csv",
+        "Open Set aside then Station and click Not ours on one of the six rows",
+        "It is back in Needs Manual Review and the badge drops to 5; the other five stay put",
+        "Click To Station on any Needs Review row — it lands in Station and survives the next drop"
+      ],
+      "mergedAt": "2026-09-12",
+      "commit": "9bc81d6",
+      "shippedAt": null,
+      "order": 3
+    },
+    {
+      "id": "pr-1011",
+      "pr": 1011,
+      "issue": 1010,
+      "tool": "ibno-coder",
+      "title": "Deploys run on Windows: rsync where it exists, cp -a where it does not",
+      "summary": "All four deploy scripts publish with rsync when it is on PATH and cp -a \"$BUILD\"/. \"$DEST\"/ when it is not, so the Windows machine can ship. Judgement calls: both branches are pure overlays (no --delete, and $BUILD is a fresh mktemp that never holds a .git), and nothing above the PUBLISH banner changed — the secret and owner guards are byte-identical to main. No tool file changed, so the tool itself looks the same; what changed is who can deploy it.",
+      "howToSee": [
+        "This one is not visible in the tool — it is the ship path",
+        "On Windows: scripts/deploy-ibno.sh ../ibno-tool-staging \"deploy: test\" now completes instead of failing with rsync: command not found",
+        "node tests/deploy-rsync-fallback.test.js — 7 checks, including a blocked build leaving the destination byte-for-byte unchanged"
+      ],
+      "mergedAt": "2026-09-12",
+      "commit": "fa2c153",
+      "shippedAt": null,
+      "order": 4
+    },
+    {
+      "id": "pr-1013",
+      "pr": 1013,
+      "issue": 1001,
+      "tool": "ibno-coder",
+      "title": "Copy for Teams and the station config editor (supervisor only)",
+      "summary": "A Copy button on the Station pane puts the still-needing packages on the clipboard as plain Teams text, and Settings gains an editor for the alias list, station route and closing line. Judgement calls: the button is BUILT AND DESTROYED rather than shipped-and-hidden, so an admin's page has no node to go inert on, and the supervisor gate is asked again inside the copy handler so the affordance and the behaviour cannot disagree; the copied population is StationStore.rowState, the same predicate the badge reads, never a second statement of still needing; the text is deliberately plain (Teams renders a pasted dash as a list).",
+      "howToSee": [
+        "Load inbox/Inbound and Van Scans - Full Detail by Date (45).csv on a supervisor device",
+        "Open Set aside then Station and click Copy — the button says 6 packages copied",
+        "Paste anywhere: Station packages still out today (6), one line per package, then the closing line",
+        "Settings: edit the closing line, save, copy again — the pasted text changes"
+      ],
+      "mergedAt": "2026-09-12",
+      "commit": "aa231ac",
+      "shippedAt": null,
+      "order": 5
+    },
+    {
+      "id": "pr-1015",
+      "pr": 1015,
+      "issue": 1003,
+      "tool": "address-catcher",
+      "title": "Address Catcher drops station packages in the ingest, before banding",
+      "summary": "Station-matched scans are filtered out of the raw parse, so a station package cannot reach a band, the worklist, the advisories, the demoted tier, a misroute flag or a 999 area suggestion. Judgement calls: the filter sits at the SCAN level in both places that turn the report into records, so a seventh surface added later inherits it for free; the precedence (override then predicate) is stated in one function mirroring the coder's; and it FAILS OPEN — no config or no rules module means nothing is excluded, because over-excluding would drop a real bad address out of the worklist.",
+      "howToSee": [
+        "Open Address Catcher and load inbox/Inbound and Van Scans - Full Detail by Date (45).csv",
+        "The record count reads 21,578 of 21,584 scan rows — the 6 station packages are gone",
+        "None of those six tracking numbers appears in any band, and the Route 103 neighbour still does",
+        "Send to Station a row in the IBNO Coder, reload the report here — that row is excluded too"
+      ],
+      "mergedAt": "2026-09-12",
+      "commit": "e673860",
+      "shippedAt": null,
+      "order": 6
+    },
+    {
+      "id": "pr-1016",
+      "pr": 1016,
+      "issue": 1002,
+      "tool": "ibno-coder",
+      "title": "Station rows and overrides cross the 999 Desk in the Day Export",
+      "summary": "The Day Export envelope goes to version 4 and carries the station day store and the override store, so the Cage A Admin's device shows the same Station pane and honours your overrides. Judgement calls: station merges additively and is NOT sort-day gated; an incoming deliveredDay only ever fills a BLANK local one and is refused outright for a row held parked or still-open (an import is an absence read on another machine); an override conflict is resolved by newest day, the one rule in day-export.js that resolves instead of reporting; and a STALE still-open is refused, named in the import summary rather than dropped silently.",
+      "howToSee": [
+        "Load inbox/Inbound and Van Scans - Full Detail by Date (45).csv and click Not ours on one station row",
+        "Export the Day Export file from the 999 Desk panel",
+        "Import it on the other device — the Station pane shows the same rows and the same override",
+        "The import summary names both stores, and a delivered row you had parked stays not-delivered"
+      ],
+      "mergedAt": "2026-09-12",
+      "commit": "297d468",
+      "shippedAt": null,
+      "order": 7
+    },
+    {
+      "id": "pr-1023",
+      "pr": 1023,
+      "issue": 1020,
+      "tool": "ibno-coder",
+      "title": "A list of what is on staging and not yet in production",
+      "summary": "This file, the module that validates it, the guard that keeps it honest, and build-info.json telling the hosted page which mirror it is. Judgement calls: mergedAt and commit are NULL until the PR is squashed (a note is written in the PR that makes the change, and the squash sha does not exist yet), so a branch's own tool commits are satisfied by a pending note rather than by a PR number nobody has issued — but only by a note that is NEW on that branch and names that commit's ticket, because an inherited null would otherwise exempt every future PR; mergedAt is a UTC date, the same clock as build-info.json's builtAt; the build target is derived from the destination clone's push remote and fails closed to other, never to staging; and #994 was backfilled on top of the ticket's seven because the guard demanded it.",
+      "howToSee": [
+        "node tests/release-notes-guard.test.js — green, and RED if a tool-touching PR has no entry",
+        "Deploy to staging: the bundle now carries release-notes.json and a build-info.json reading target staging",
+        "The What's new panel that reads this file is #1021; the release queue is #1022"
+      ],
+      "mergedAt": "2026-09-12",
+      "commit": "0c915f0",
+      "shippedAt": null,
+      "order": 8
+    },
+    {
+      "id": "pr-1024",
+      "pr": 1024,
+      "issue": 1022,
+      "tool": "ibno-coder",
+      "title": "The Release queue: a pinned issue you tick to choose what ships next",
+      "summary": "scripts/release-queue.js turns release-notes.json into a pinned Release queue issue — one checkbox per pending change in merge order — and reads the ticks back as either a checkpoint promote or a flagged cherry-pick. Judgement calls: resolve runs FIRST in both generate and stamp, because a note is written in the PR that makes the change and its commit is null until that PR squashes (#1023 merged as 0c915f0 and its own entry still read null); the squash match is ANCHORED on the trailing (#pr) since these subjects carry the issue number mid-line; an unresolvable null is a HARD error, with one checked exception for a PR GitHub still reports OPEN, because unknown must never read as \"no sha expected\"; and ticks are preserved across a regenerate by PR number, never by position, so a reordering list cannot move Tyler's pick onto someone else's change.",
+      "howToSee": [
+        "Open the pinned Release queue issue — one checkbox per change that is on staging and not in production",
+        "Tick the top two and run: node scripts/release-queue.js picks — it prints CHECKPOINT and the exact ff-only/deploy/check commands",
+        "Tick only the bottom one instead — it prints CHERRY-PICK and warns that it costs a review cycle",
+        "After a production deploy: node scripts/release-queue.js stamp <release-sha> moves the shipped items to Live on production"
+      ],
+      "mergedAt": "2026-09-12",
+      "commit": "52a6172",
+      "shippedAt": null,
+      "order": 9
+    },
+    {
+      "id": "pr-1026",
+      "pr": 1026,
+      "issue": 1021,
+      "tool": "ibno-coder",
+      "title": "A What's new button on staging, listing what is not yet on production",
+      "summary": "On the staging mirror only, a What's new button opens a right-hand drawer listing every merged change that has not reached production yet — title, what it does, numbered steps for seeing it, merge date and a PR link — with the already-shipped ones collapsed underneath. Judgement calls: build-info.json WINS over the file:/localhost dev rule, which only fires where there is no build-info at all, so a production build can never be talked into showing the list; the button and the drawer are BUILT rather than shipped-and-hidden, so a production page carries neither node; a release-notes file that fails validation shows the same 'could not load' message as a missing one, because a half-read list of four items out of seven is indistinguishable from three unbuilt ones; and the drawer beat a Settings-style block because at 1280 the block runs these prose notes the full 1248px of content width.",
+      "howToSee": [
+        "Open the staging mirror (not the cage PC production site) — the button sits beside Code Lookup",
+        "Click What's new: the notes list oldest merge first, which is the order the release queue promotes in",
+        "Open production instead: there is no button at all, and no hidden one in the DOM",
+        "Open ibno-coder.html from the repo as a file:// page: the button is there, because a dev checkout has no build-info.json"
+      ],
+      "mergedAt": "2026-09-12",
+      "commit": "330c15c",
+      "shippedAt": null,
+      "order": 10
+    }
+  ],
+  "queueIssue": 1025
+}
