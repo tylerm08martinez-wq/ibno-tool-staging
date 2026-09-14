@@ -3840,10 +3840,40 @@ function whatsNewHasToken() {
 // dropped when the request resolves.
 function whatsNewToken() {
   try {
-    const sync = String(localStorage.getItem(SYNC_TOKEN_KEY) || '').trim();
+    const sync = whatsNewReadToken(SYNC_TOKEN_KEY);
     if (sync) return sync;
-    return String(localStorage.getItem(DESK_TOKEN_KEY) || '').trim();
+    return whatsNewReadToken(DESK_TOKEN_KEY);
   } catch (e) { return ''; }
+}
+
+// BOTH TOKENS ARE JSON-ENCODED IN localStorage, AND READING THEM RAW IS A 401.
+// ToolHelpers.createStorage() puts every value through JSON.stringify, and
+// SyncController.saveSettings writes both tokens through it, so the bytes on
+// disk are `"ghp_..."` WITH the quote characters. getItem hands those back
+// verbatim, which made the send post `Authorization: Bearer "ghp_..."` and take
+// a 401 Bad credentials on a token that was perfectly good (Tyler, 2026-09-14).
+// The DOM tests missed it because their localStorage stub was seeded with bare
+// strings — a shape the real writer cannot produce — so the suite was green on
+// a send that could never have worked. The pinning test builds its fixture
+// bytes with the REAL writer instead of typing them.
+//
+// Read through the same helper that wrote it. The raw path below is the
+// fallback for a value that is NOT JSON — a token pasted in by hand, or written
+// by some future path that does not encode — and it strips a symmetric pair of
+// quotes for the same reason. A JSON object or array is not a token and is
+// refused rather than stringified into a header.
+function whatsNewReadToken(key) {
+  let viaHelper = null;
+  try { viaHelper = toolStorage.get(key, null); } catch (e) { viaHelper = null; }
+  if (typeof viaHelper === 'string' && viaHelper.trim()) return viaHelper.trim();
+  if (viaHelper !== null && typeof viaHelper !== 'string') return '';
+  let raw = '';
+  try { raw = String(localStorage.getItem(key) || '').trim(); } catch (e) { return ''; }
+  if (!raw || raw.charAt(0) === '{' || raw.charAt(0) === '[') return '';
+  if (raw.length > 1 && raw.charAt(0) === '"' && raw.charAt(raw.length - 1) === '"') {
+    raw = raw.slice(1, -1).trim();
+  }
+  return raw;
 }
 
 function whatsNewFeedbackInput(pr, value) {

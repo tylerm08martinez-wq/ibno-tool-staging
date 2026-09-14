@@ -290,6 +290,27 @@
       "commit": "87e615a",
       "shippedAt": null,
       "order": 12
+    },
+    {
+      "id": "pr-1032",
+      "pr": 1032,
+      "issue": null,
+      "tool": "ibno-coder",
+      "title": "Send to GitHub works from the work PC again",
+      "summary": "Send to GitHub was answering 401 on a token that was fine, because the tool was reading the saved token without unwrapping it. It now reads the token the same way it was saved.",
+      "watchFor": [
+        "If Send still says 401, the token itself has expired. Save a fresh one in Settings.",
+        "The button only shows when a token is saved on that device."
+      ],
+      "howToSee": [
+        "Open What’s new on the work PC and open a card",
+        "Type a note and click Send to GitHub",
+        "The line under the box reads Sent with a link to the comment"
+      ],
+      "mergedAt": "2026-09-14",
+      "commit": "868f1af",
+      "shippedAt": null,
+      "order": 13
     }
   ],
   "queueIssue": 1025
