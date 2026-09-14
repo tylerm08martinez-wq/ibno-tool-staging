@@ -266,6 +266,30 @@
       "commit": "0a12b4a",
       "shippedAt": null,
       "order": 11
+    },
+    {
+      "id": "pr-1031",
+      "pr": 1031,
+      "issue": 1030,
+      "tool": "ibno-coder",
+      "title": "Write feedback on a What’s new card and send it back",
+      "summary": "Open a card on What’s new and there is now a box under Try it where you can write what you saw, saved on this device as you type. Copy all feedback puts every note on the clipboard, and if this browser holds a GitHub token each card also gets a Send to GitHub button that posts your note as a comment on that change.",
+      "watchFor": [
+        "The Send button only appears when this browser already holds a GitHub token. Without one you still get Copy all feedback.",
+        "A card you have written on shows a small speech bubble in its header, and the top line counts how many have feedback.",
+        "Edit a note you already sent and the button re-arms, so you can send the new version.",
+        "The notes are saved on this device only. They never travel in the Day Export and the cage PC never sees them."
+      ],
+      "howToSee": [
+        "Open What’s new on staging and click a card title to open it",
+        "Type something in the Feedback box under Try it",
+        "Close the card and look for the speech bubble beside the Tested tick",
+        "Click Copy all feedback and paste it somewhere to read it back"
+      ],
+      "mergedAt": "2026-09-14",
+      "commit": "87e615a",
+      "shippedAt": null,
+      "order": 12
     }
   ],
   "queueIssue": 1025

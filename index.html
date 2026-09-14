@@ -877,6 +877,32 @@
     .wn-live[open] summary { margin-bottom: 10px; }
     .wn-empty, .wn-error { font-size: 13px; color: var(--text-muted); }
     .wn-queue { font-size: 12px; margin-top: 4px; }
+    /* ── PER-CARD FEEDBACK (#1030) ─────────────────────────────────────────
+       A textarea inside an open card, plus a status line and (only when the
+       tool holds a sync token) a Send button. NO NEW COLOUR VALUES: the field
+       is --field-bg on --border-strong, which is the same pair every other
+       input on this page uses, so both themes arrive through theme.css and
+       theme-contrast-dom stays green.
+
+       The box is `resize: vertical` and starts at 3 rows. Horizontal resize is
+       off because the drawer is a 421px column at 1280 and a 360px one on a
+       phone — a box dragged wider than its own drawer is a box whose right
+       edge the reader cannot see. */
+    .wn-feedback { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
+    .wn-feedback textarea {
+      width: 100%; box-sizing: border-box; min-height: 58px; resize: vertical;
+      padding: 6px 8px; font: inherit; font-size: 12.5px; line-height: 1.45;
+      color: var(--text); background: var(--field-bg);
+      border: 1px solid var(--border-strong); border-radius: 6px;
+    }
+    .wn-feedback textarea:focus { outline: none; border-color: var(--brand-ink); }
+    .wn-fb-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+    .wn-fb-status { font-size: 11px; color: var(--text-faint); flex: 1; min-width: 0; }
+    .wn-fb-status a { color: var(--brand-ink); }
+    /* The mark on a CLOSED card, beside the Tested tick, in the same faint ink
+       as that tick: "you wrote on this one", never a second call to action. */
+    .wn-note-mark { color: var(--text-faint); margin-right: 4px; }
+    .wn-copy-all { font-size: 12px; margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
     /* ── Manual review action cell ───────────────────────────────────────────── */
     .action-cell { white-space: nowrap; padding: 6px 12px !important; }
@@ -3165,6 +3191,7 @@
 <!-- The release-notes reader (#1020). Shipped in the deploy bundle since #1023;
      the staging What's new drawer (#1021) is what loads it. -->
 <script src="lib/release-notes.js"></script>
+<script src="lib/whats-new-feedback.js"></script>
 <script src="lib/csv.js"></script>
 <script src="lib/xlsx.js"></script>
 <script src="lib/spreadsheet.js"></script>
@@ -3367,9 +3394,12 @@ const WHATS_NEW_REPO = 'work';
 // substring before its guard greps), so a second literal would fail the build
 // — and a link with no owner is not a link. The repo NAME differs from the
 // desk channel's, so only the login is borrowed.
+function whatsNewOwner() {
+  return (typeof DESK_DEFAULT_COORDS === 'object' && DESK_DEFAULT_COORDS && DESK_DEFAULT_COORDS.owner) || '';
+}
+
 function whatsNewRepoUrl(kind, n) {
-  const owner = (typeof DESK_DEFAULT_COORDS === 'object' && DESK_DEFAULT_COORDS && DESK_DEFAULT_COORDS.owner) || '';
-  return 'https://github.com/' + owner + '/' + WHATS_NEW_REPO + '/' + kind + '/' + n;
+  return 'https://github.com/' + whatsNewOwner() + '/' + WHATS_NEW_REPO + '/' + kind + '/' + n;
 }
 
 // Both JSON reads go through here: a missing file, a 404, a dead network and
@@ -3483,6 +3513,12 @@ function renderWhatsNew() {
     // TICKED CARDS SORT TO THE BOTTOM (#1028), and the rank each card keeps is
     // its rank in SHIP order, not its position after this sort — untick it and
     // it goes back where git put it, not to the end of the untested run.
+    // The rendered pending list, kept for Copy all (#1030). The markdown needs
+    // each card's TITLE, and the cards on screen carry only escaped HTML — so
+    // the copy is built from the same entry objects the cards were, in the same
+    // ship order, rather than scraped back out of the DOM.
+    whatsNewShown = pending;
+
     const ranked = pending.map(function (e, i) { return { e: e, rank: i, tested: whatsNewIsTested(e.pr) }; });
     const ordered = ranked.filter(function (r) { return !r.tested; })
       .concat(ranked.filter(function (r) { return r.tested; }));
@@ -3504,10 +3540,21 @@ function renderWhatsNew() {
     // and wrote into each entry as `order`, which is what a checkpoint promote
     // actually replays. `mergedAt` is day-granular and survives only as the
     // fallback for an entry git could not place.
+    // Copy all sits in the head area, BELOW the queue link and ABOVE the list
+    // (#1030): it acts on every card at once, so it must not look like it
+    // belongs to whichever card happens to be at the top. It is rendered
+    // unconditionally — a disabled-when-empty button would answer "why can I
+    // not click this?" with silence, where a click that says "Nothing written
+    // yet" answers it.
+    const copyAll = '<div class="wn-copy-all">' +
+      '<button type="button" class="btn btn-gray" id="wn-copy-all" onclick="whatsNewCopyAll()">Copy all feedback</button>' +
+      '<span class="wn-fb-status" id="wn-copy-all-status"></span></div>';
+
     panel.innerHTML = whatsNewHead(
       '✨ What’s new on staging',
-      whatsNewSubline(pending.length, ranked.filter(function (r) { return r.tested; }).length)) +
-      '<div class="wn-body">' + queueLink + body + liveBlock + '</div>';
+      whatsNewSubline(pending.length, ranked.filter(function (r) { return r.tested; }).length,
+        WhatsNewFeedback.withFeedback(pending, whatsNewFeedbackMap()).length)) +
+      '<div class="wn-body">' + queueLink + copyAll + body + liveBlock + '</div>';
     const close = document.getElementById('whats-new-close');
     if (close) close.onclick = closeWhatsNew;
     return true;
@@ -3584,18 +3631,37 @@ function whatsNewApplyTested(pr, on) {
     return Number(a.getAttribute('data-rank')) - Number(b.getAttribute('data-rank'));
   });
   items.forEach(function (el) { list.appendChild(el); });
-  const sub = document.querySelector('#whats-new-panel .wn-sub');
-  if (sub) {
-    sub.textContent = whatsNewSubline(items.length,
-      items.filter(function (el) { return el.classList.contains('is-tested'); }).length);
-  }
+  whatsNewRefreshSubline();
 }
 
-// "N waiting for production · M tested · in the order they will ship". The
-// third clause stays (#1021 review): the list is sorted by the rank git gave
-// the queue issue, and the subtitle may not claim an order it is not using.
-function whatsNewSubline(pending, tested) {
-  return pending + ' waiting for production · ' + tested + ' tested · in the order they will ship';
+// The subline, recomputed FROM THE LIST ON SCREEN rather than from whatever the
+// caller happened to know. Three callers change one of its three numbers each
+// (a tick, a keystroke, a send), and a subline rebuilt from one caller's view
+// would blank the other two clauses. Reading the DOM is also what makes the
+// counts agree with what the reader can see.
+function whatsNewRefreshSubline() {
+  const sub = document.querySelector('#whats-new-panel .wn-sub');
+  if (!sub) return;
+  const list = document.getElementById('wn-list');
+  const items = list ? Array.prototype.slice.call(list.querySelectorAll('.wn-item')) : [];
+  sub.textContent = whatsNewSubline(items.length,
+    items.filter(function (el) { return el.classList.contains('is-tested'); }).length,
+    items.filter(function (el) { return el.getAttribute('data-has-note') === '1'; }).length);
+}
+
+// "N waiting for production · M tested · K with feedback · in the order they
+// will ship". The third clause stays (#1021 review): the list is sorted by the
+// rank git gave the queue issue, and the subtitle may not claim an order it is
+// not using.
+//
+// "K with feedback" APPEARS ONLY WHEN K > 0 (#1030). "0 with feedback" on a
+// fresh browser is a clause that is true of every reader on their first open
+// and tells none of them anything — and the subline is already three clauses
+// long in a 421px column.
+function whatsNewSubline(pending, tested, noted) {
+  return pending + ' waiting for production · ' + tested + ' tested' +
+    (noted > 0 ? ' · ' + noted + ' with feedback' : '') +
+    ' · in the order they will ship';
 }
 
 function whatsNewToggleCard(pr) {
@@ -3631,13 +3697,16 @@ function whatsNewCard(e, rank) {
     ? '<div class="wn-label">Watch for</div><ul class="wn-watch">' + watch + '</ul>'
     : '';
   const lead = ReleaseNotes.firstSentence(e.summary);
+  const rec = whatsNewFeedbackMap()[pr] || null;
+  const noted = WhatsNewFeedback.hasText(rec);
   return '<div class="wn-item' + (tested ? ' is-tested' : '') + '" data-pr="' + esc(pr) +
-      '" data-rank="' + esc(String(rank)) + '">' +
+      '" data-rank="' + esc(String(rank)) + '" data-has-note="' + (noted ? '1' : '0') + '">' +
     '<div class="wn-item-head">' +
       '<h3><button type="button" class="wn-item-toggle" aria-expanded="false" ' +
         'aria-controls="wn-detail-' + esc(pr) + '" onclick="whatsNewToggleCard(' + esc(pr) + ')">' +
         '<span class="wn-chev" aria-hidden="true">▸</span>' +
-        '<span class="wn-title"><span class="wn-tick">' + (tested ? '✓' : '') + '</span>' + esc(e.title) +
+        '<span class="wn-title"><span class="wn-tick">' + (tested ? '✓' : '') + '</span>' +
+        '<span class="wn-note-mark" title="You wrote feedback on this one">' + (noted ? '💬' : '') + '</span>' + esc(e.title) +
         '<span class="wn-lead">' + esc(lead) + '</span></span>' +
       '</button></h3>' +
       '<label class="wn-tested"><input type="checkbox" class="wn-tested-box"' + (tested ? ' checked' : '') +
@@ -3649,11 +3718,317 @@ function whatsNewCard(e, rank) {
       watchBlock +
       '<div class="wn-label">Try it</div>' +
       '<ol class="wn-steps">' + steps + '</ol>' +
+      whatsNewFeedbackBlock(e, rec) +
       '<div class="wn-meta">' +
         '<span>merged ' + esc(e.mergedAt || 'not yet — in flight') + '</span>' +
         '<a href="' + esc(whatsNewRepoUrl('pull', e.pr)) + '" target="_blank" rel="noopener">PR &#35;' + esc(String(e.pr)) + '</a>' +
       '</div>' +
     '</div></div>';
+}
+
+// ── PER-CARD FEEDBACK (#1030) ───────────────────────────────────────────────
+//
+// The drawer could say what changed; it could not carry back what Tyler thought
+// of it. Now each open card has a box, the box saves to ONE localStorage key on
+// this device, and there are two ways out: Copy all feedback (always) and Send
+// to GitHub (only when the tool already holds a sync token).
+//
+// SAME TERMS AS THE TESTED TICK, and for the same reasons. One key, read and
+// written only by this block. NOT in the Day Export envelope, NOT synced, NOT a
+// day store. A corrupt key degrades to no notes rather than taking the drawer
+// down. The pure half — the store shape, the markdown, the comment body — is
+// lib/whats-new-feedback.js, so none of it is forked in here.
+//
+// THE TOKEN IS READ AT CLICK TIME AND NOWHERE ELSE. It goes into one Bearer
+// header on one api.github.com request, it is never logged, never written into
+// the markdown, never put in a store. There is no new token store: this is the
+// key lib/github-json-sync.js already uses, read the same way.
+const WHATS_NEW_FEEDBACK_KEY = 'ibno_whats_new_feedback';
+
+// The pending entries currently on screen, in ship order. Copy all needs each
+// card's unescaped TITLE and the DOM only holds escaped HTML.
+let whatsNewShown = [];
+
+// Per-PR debounce timers. The box saves on input, but ~300ms after the typing
+// stops rather than on every keystroke: a localStorage write per character
+// turns a paragraph into 400 synchronous writes on the cage PC.
+const whatsNewSaveTimers = Object.create(null);
+
+// The PRs whose Send request is OPEN right now (review finding, #1031). This
+// exists because "may I click Send?" has two answers and isDirty only knows
+// one of them: mid-flight the record still reads sentAt=null, so any repaint
+// between the click and the 201 — the debounce timer firing, a Copy all, a
+// status refresh — re-enabled the button under a "Sending…" line and a second
+// click posted a DUPLICATE comment on the PR. A request in flight is the other
+// reason the button must stay dead, so it is tracked here and cleared on BOTH
+// the success and the failure path.
+const whatsNewSending = Object.create(null);
+
+function whatsNewFeedbackMap() {
+  let raw = null;
+  try { raw = localStorage.getItem(WHATS_NEW_FEEDBACK_KEY); } catch (e) { raw = null; }
+  return WhatsNewFeedback.parseStore(raw);
+}
+
+function whatsNewWriteFeedback(map) {
+  try { localStorage.setItem(WHATS_NEW_FEEDBACK_KEY, JSON.stringify(map)); }
+  catch (e) { /* full or blocked: the UI still moves, same as the tick */ }
+}
+
+// The Feedback block under Try it. `rec` is this card's record or null.
+//
+// The Send button is rendered ONLY when a token is present, and that decision
+// is made HERE, at render time, not hidden with CSS: a button that exists but
+// cannot work is a button someone clicks. No token is not an error state — the
+// copy path is the whole feature without one — so it says nothing at all.
+function whatsNewFeedbackBlock(e, rec) {
+  const esc = ToolHelpers.escapeHtml;
+  const pr = String(e.pr);
+  const text = (rec && rec.text) || '';
+  const sendBtn = whatsNewHasToken()
+    ? '<button type="button" class="btn btn-gray wn-fb-send" id="wn-send-' + esc(pr) + '"' +
+      (WhatsNewFeedback.isDirty(rec) ? '' : ' disabled') +
+      ' onclick="whatsNewSendFeedback(' + esc(pr) + ')">' +
+      (rec && rec.sentAt && !WhatsNewFeedback.isDirty(rec) ? 'Sent' : 'Send to GitHub') + '</button>'
+    : '';
+  return '<div class="wn-feedback">' +
+    '<div class="wn-label">Feedback</div>' +
+    '<textarea id="wn-fb-' + esc(pr) + '" class="wn-fb-box" rows="3" ' +
+      'aria-label="Feedback on this change" ' +
+      'placeholder="What did you see? What should change?" ' +
+      'oninput="whatsNewFeedbackInput(' + esc(pr) + ', this.value)">' + esc(text) + '</textarea>' +
+    '<div class="wn-fb-row">' + sendBtn +
+      '<span class="wn-fb-status" id="wn-fb-status-' + esc(pr) + '">' +
+      esc(whatsNewFeedbackStatus(rec)) + '</span>' +
+    '</div></div>';
+}
+
+// The resting status line. "Saved" is deliberately NOT shown for a note that
+// has never been sent: the box saving is the default and announcing it on every
+// card is noise. What earns a line is the thing a reader could otherwise get
+// wrong — that a note GitHub already has has since been edited here.
+function whatsNewFeedbackStatus(rec) {
+  if (!rec || !WhatsNewFeedback.hasText(rec)) return '';
+  if (rec.sentAt && !WhatsNewFeedback.isDirty(rec)) return 'Sent';
+  if (rec.sentAt) return 'Edited since it was sent';
+  return 'Saved on this device';
+}
+
+function whatsNewSetStatus(pr, html) {
+  const el = document.getElementById('wn-fb-status-' + String(pr));
+  if (el) el.innerHTML = html;
+}
+
+// Does this browser hold a sync token? READ, NEVER RETURNED — the boolean is
+// what the UI needs, and a function that hands the token back to the render
+// path is a function that can put it in innerHTML.
+function whatsNewHasToken() {
+  return whatsNewToken() !== '';
+}
+
+// The one read of the token, at click time. The value is handed straight to the
+// fetch below and to nothing else.
+//
+// TWO KEYS, IN THIS ORDER, AND NO NEW STORE (spec amendment to #1030, Tyler
+// 2026-09-14). The sync token is the first choice because it is the one this
+// page already uses for its own writes. But Tyler reads staging from the PC
+// that holds the 999 Desk PAT and may never have set the sync token there, and
+// a Send button that is simply absent on the machine he actually tests from is
+// the feature not existing. So an empty sync token falls back to the desk
+// token. BOTH are keys the tool already holds — nothing new is written, and
+// neither is copied anywhere: the winner goes into one Bearer header and is
+// dropped when the request resolves.
+function whatsNewToken() {
+  try {
+    const sync = String(localStorage.getItem(SYNC_TOKEN_KEY) || '').trim();
+    if (sync) return sync;
+    return String(localStorage.getItem(DESK_TOKEN_KEY) || '').trim();
+  } catch (e) { return ''; }
+}
+
+function whatsNewFeedbackInput(pr, value) {
+  const key = String(pr);
+  if (whatsNewSaveTimers[key]) clearTimeout(whatsNewSaveTimers[key]);
+  whatsNewSaveTimers[key] = setTimeout(function () {
+    delete whatsNewSaveTimers[key];
+    whatsNewSaveFeedback(key, value);
+  }, 300);
+}
+
+// The write. An EMPTIED box DELETES its record rather than storing an empty
+// string, on the tick's reasoning: the key holds only what was written, and a
+// record of "" would keep the 💬 mark alive (no — hasText() would clear it) and,
+// worse, keep a stale sentText around to make a later note look already-sent.
+function whatsNewSaveFeedback(pr, value) {
+  const key = String(pr);
+  const map = whatsNewFeedbackMap();
+  const text = String(value == null ? '' : value);
+  const now = new Date();
+  if (!text.trim()) {
+    delete map[key];
+  } else {
+    const prev = map[key] || {};
+    map[key] = {
+      text: text,
+      updatedAt: now.toISOString(),
+      sentAt: prev.sentAt || null,
+      sentText: typeof prev.sentText === 'string' ? prev.sentText : null,
+    };
+  }
+  whatsNewWriteFeedback(map);
+  whatsNewApplyFeedback(key, map[key] || null);
+}
+
+// Repaint the one card, never the drawer. A re-render would re-read the file,
+// close every card the reader had opened and — since the box is IN a card —
+// take the focus out of the textarea they are typing into.
+function whatsNewApplyFeedback(pr, rec) {
+  const item = document.querySelector('#whats-new-panel .wn-item[data-pr="' + String(pr) + '"]');
+  if (item) {
+    const noted = WhatsNewFeedback.hasText(rec);
+    item.setAttribute('data-has-note', noted ? '1' : '0');
+    const mark = item.querySelector('.wn-note-mark');
+    if (mark) mark.textContent = noted ? '💬' : '';
+    const send = item.querySelector('.wn-fb-send');
+    if (send) {
+      const dirty = WhatsNewFeedback.isDirty(rec);
+      // Dirty AND not already in flight — see whatsNewSending above.
+      send.disabled = !dirty || !!whatsNewSending[String(pr)];
+      send.textContent = (rec && rec.sentAt && !dirty) ? 'Sent' : 'Send to GitHub';
+    }
+  }
+  whatsNewSetStatus(pr, ToolHelpers.escapeHtml(whatsNewFeedbackStatus(rec)));
+  whatsNewRefreshSubline();
+}
+
+// Copy all feedback -> the markdown for every card that has a note, through the
+// page's one honest clipboard path (#676): the success is painted on RESOLVE,
+// and a refused write says so instead of lying.
+//
+// NOTHING WRITTEN YET IS SAID, NOT SILENTLY COPIED. An empty payload must never
+// reach the clipboard — writeText('') CLEARS it — so this returns early with a
+// message rather than destroying whatever the user had copied before.
+function whatsNewCopyAll() {
+  const map = whatsNewFeedbackMap();
+  const mine = WhatsNewFeedback.withFeedback(whatsNewShown, map);
+  if (!mine.length) {
+    whatsNewCopyStatus('Nothing written yet — type in a card first.');
+    return Promise.resolve(false);
+  }
+  const md = WhatsNewFeedback.formatMarkdown(
+    whatsNewShown, map, whatsNewTestedMap(), deviceName, new Date());
+  return copyWithFeedback(md,
+    function () { whatsNewCopyStatus('Copied ' + mine.length + ' note' + (mine.length === 1 ? '' : 's'), 2000); },
+    function () { whatsNewCopyStatus(COPY_FAIL_NOTE); });
+}
+
+// The Copy all status line. A SUCCESS clears itself after a moment; a FAILURE
+// stands until the drawer repaints — #676's rule, and the reason `ms` is
+// optional rather than defaulted.
+function whatsNewCopyStatus(msg, ms) {
+  const el = document.getElementById('wn-copy-all-status');
+  if (!el) return;
+  el.textContent = msg;
+  if (ms) {
+    setTimeout(function () {
+      const now = document.getElementById('wn-copy-all-status');
+      if (now && now.textContent === msg) now.textContent = '';
+    }, ms);
+  }
+}
+
+// Send to GitHub -> ONE issue comment on that card's PR.
+//
+// THE TOKEN IS READ HERE AND HELD IN A LOCAL FOR THE LENGTH OF ONE REQUEST. It
+// goes into one Authorization header. It is not logged (the catch below reports
+// a status and a message, never the request), it is not written into the body,
+// and it does not enter lib/whats-new-feedback.js at all.
+//
+// AN ERROR KEEPS THE TEXT AND CHANGES NOTHING ELSE. The note is the work; a 401
+// at 03:00 must leave it exactly where it was, with the failure named, so the
+// copy path is still available. Only a 201 writes sentAt/sentText.
+function whatsNewSendFeedback(pr) {
+  const key = String(pr);
+  const box = document.getElementById('wn-fb-' + key);
+  // The pending debounce is CANCELLED, not merely overtaken. Flushing the box
+  // below leaves the timer armed; ~300ms later it fired mid-flight, repainted
+  // the card off a record whose sentAt is still null, and re-enabled Send under
+  // a "Sending…" status — one more click, one duplicate comment.
+  if (whatsNewSaveTimers[key]) clearTimeout(whatsNewSaveTimers[key]);
+  delete whatsNewSaveTimers[key];
+  // The box may hold a keystroke the 300ms debounce has not written yet, and
+  // sending the stored text would post the paragraph-before-last.
+  if (box) whatsNewSaveFeedback(key, box.value);
+  const map = whatsNewFeedbackMap();
+  const rec = map[key] || null;
+  const text = rec ? String(rec.text || '').trim() : '';
+  if (!text) { whatsNewSetStatus(key, 'Nothing to send.'); return Promise.resolve(false); }
+
+  const token = whatsNewToken();
+  if (!token) { whatsNewSetStatus(key, 'No GitHub token on this device.'); return Promise.resolve(false); }
+
+  const entry = ReleaseNotes.byPr(whatsNewShown, pr) || { pr: Number(pr) };
+  const tested = whatsNewIsTested(pr);
+  const body = WhatsNewFeedback.commentBody(entry, text, deviceName, tested, new Date());
+  const url = WhatsNewFeedback.commentUrl(whatsNewOwner(), WHATS_NEW_REPO, key);
+
+  whatsNewSetStatus(key, 'Sending…');
+  whatsNewSending[key] = true;
+  const send = document.getElementById('wn-send-' + key);
+  if (send) send.disabled = true;
+
+  return Promise.resolve(fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer ' + token,
+      Accept: 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ body: body }),
+  })).then(function (r) {
+    if (!r || r.status !== 201) {
+      delete whatsNewSending[key];
+      const code = r && r.status ? r.status : 'no response';
+      whatsNewSetStatus(key, ToolHelpers.escapeHtml('Could not send (' + code + ') — your note is still here.'));
+      if (send) send.disabled = false;
+      return false;
+    }
+    return Promise.resolve(r.json()).catch(function () { return {}; }).then(function (data) {
+      delete whatsNewSending[key];
+      const after = whatsNewFeedbackMap();
+      const cur = after[key];
+      // The record is re-read rather than reused: the box can have been typed
+      // into while the request was in flight, and stamping sentText with the
+      // text we SENT (not the text now on screen) is what makes isDirty tell
+      // the truth in that case.
+      if (cur) {
+        cur.sentAt = new Date().toISOString();
+        cur.sentText = text;
+        after[key] = cur;
+        whatsNewWriteFeedback(after);
+        whatsNewApplyFeedback(key, cur);
+      }
+      // The link is rendered only if it is a github.com https URL. The value is
+      // escaped either way, so this is defence in depth: escaping stops the
+      // attribute from breaking out, it does NOT stop a javascript: or data:
+      // href from being a live thing the reader can click. A response that
+      // hands back anything else is reported as a plain "Sent" with no link.
+      const raw = data && typeof data.html_url === 'string' ? data.html_url : '';
+      const href = /^https:\/\/github\.com\//.test(raw) ? raw : '';
+      whatsNewSetStatus(key, href
+        ? 'Sent · <a href="' + ToolHelpers.escapeHtml(href) + '" target="_blank" rel="noopener">view</a>'
+        : 'Sent');
+      return true;
+    });
+  }, function (err) {
+    delete whatsNewSending[key];
+    // A dead network, a blocked origin, a refused request. The MESSAGE is
+    // reported; the request — which carries the header — is not.
+    whatsNewSetStatus(key, ToolHelpers.escapeHtml(
+      'Could not send (' + ((err && err.message) || 'network error') + ') — your note is still here.'));
+    if (send) send.disabled = false;
+    return false;
+  });
 }
 
 function toggleSettings() {
