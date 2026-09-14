@@ -831,9 +831,43 @@
     .wn-head h2 { margin: 0; font-size: 15px; color: var(--brand-ink); }
     .wn-sub { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
     .wn-body { padding: 14px 16px; }
-    .wn-item { border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); padding: 12px 14px; margin-bottom: 12px; }
-    .wn-item h3 { margin: 0 0 6px; font-size: 14px; color: var(--text); }
+    .wn-item { border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); padding: 10px 12px; margin-bottom: 8px; }
+    /* CARDS START CLOSED (#1028). Measured on the real list, every card open,
+       the drawer ran 5,268px — eleven walls of prose, which is the same as
+       showing none of them. Closed, a card is a title plus one sentence.
+
+       The whole header is ONE BUTTON so the click target is the card, not a
+       12px chevron; the <h3> wraps the button rather than sitting inside it,
+       because a heading is not phrasing content and a button whose content
+       model the parser has to repair is a button a probe cannot find. The
+       lead line lives inside the heading for the same reason — it is part of
+       the one click target — and is styled back down to body text. */
+    .wn-item-head { display: flex; align-items: flex-start; gap: 8px; }
+    .wn-item h3 { margin: 0; font-size: 14px; color: var(--text); font-weight: 700; flex: 1; min-width: 0; }
+    .wn-item-toggle {
+      display: flex; align-items: flex-start; gap: 7px; width: 100%;
+      background: none; border: 0; padding: 0; margin: 0; text-align: left;
+      font: inherit; color: inherit; cursor: pointer;
+    }
+    .wn-item-toggle:hover .wn-title { color: var(--brand-ink); }
+    .wn-item-toggle:focus-visible { outline: 2px solid var(--brand-ink); outline-offset: 2px; }
+    .wn-chev { color: var(--text-faint); font-size: 11px; line-height: 1.5; width: 10px; flex: none; }
+    .wn-title { display: block; }
+    .wn-lead { display: block; font-weight: 400; font-size: 12.5px; color: var(--text-muted); margin-top: 3px; }
+    /* The lead line IS the first sentence of What changed, so an open card
+       would print it twice, two lines apart. Open, the block below says it. */
+    .wn-item.is-open .wn-lead { display: none; }
+    /* The tick on a closed card, and the muted card it belongs to: no new
+       colour, just the existing faint ink and a lighter card. */
+    .wn-tick { color: var(--text-faint); font-weight: 700; margin-right: 4px; }
+    .wn-item.is-tested { opacity: 0.72; }
+    .wn-tested { font-size: 11px; color: var(--text-faint); display: flex; align-items: center; gap: 4px; flex: none; cursor: pointer; user-select: none; }
+    .wn-tested input { margin: 0; cursor: pointer; }
+    .wn-detail { margin-top: 10px; }
+    .wn-detail[hidden] { display: none; }
     .wn-sum { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+    .wn-watch { margin: 0 0 8px 18px; padding: 0; font-size: 13px; color: var(--text); }
+    .wn-watch li { margin-bottom: 3px; }
     .wn-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin-bottom: 6px; }
     .wn-steps { margin: 0 0 8px 18px; padding: 0; font-size: 13px; color: var(--text); }
     .wn-steps li { margin-bottom: 3px; }
@@ -3446,8 +3480,14 @@ function renderWhatsNew() {
         'Release queue &#35;' + esc(String(q)) + '</a> &mdash; tick what ships next</div>'
       : '';
 
+    // TICKED CARDS SORT TO THE BOTTOM (#1028), and the rank each card keeps is
+    // its rank in SHIP order, not its position after this sort — untick it and
+    // it goes back where git put it, not to the end of the untested run.
+    const ranked = pending.map(function (e, i) { return { e: e, rank: i, tested: whatsNewIsTested(e.pr) }; });
+    const ordered = ranked.filter(function (r) { return !r.tested; })
+      .concat(ranked.filter(function (r) { return r.tested; }));
     const body = pending.length
-      ? pending.map(whatsNewCard).join('')
+      ? '<div id="wn-list">' + ordered.map(function (r) { return whatsNewCard(r.e, r.rank); }).join('') + '</div>'
       : '<div class="wn-empty">Nothing is waiting: staging and production match.</div>';
 
     const liveBlock = '<details class="wn-live"><summary>Already on production (' + live.length + ')</summary>' +
@@ -3466,7 +3506,7 @@ function renderWhatsNew() {
     // fallback for an entry git could not place.
     panel.innerHTML = whatsNewHead(
       '✨ What’s new on staging',
-      pending.length + ' waiting for production · in the order they will ship') +
+      whatsNewSubline(pending.length, ranked.filter(function (r) { return r.tested; }).length)) +
       '<div class="wn-body">' + queueLink + body + liveBlock + '</div>';
     const close = document.getElementById('whats-new-close');
     if (close) close.onclick = closeWhatsNew;
@@ -3486,20 +3526,133 @@ function whatsNewHead(title, sub) {
     '</div><button class="btn btn-gray" id="whats-new-close" onclick="closeWhatsNew()">Close</button></div>';
 }
 
-// One note. EVERY piece of text here is escaped: the notes are hand-written
-// prose in a JSON file, so an apostrophe or an angle bracket in a summary is
-// ordinary, and none of it may reach innerHTML raw.
-function whatsNewCard(e) {
+// ── THE TESTED TICK (#1028) ─────────────────────────────────────────────────
+//
+// STAGING-ONLY UI STATE, AND DELIBERATELY NOT A STORE. One localStorage key,
+// an object keyed by PR number, read and written only by this block. It does
+// NOT go in the Day Export envelope, it is not synced, and it is not a day
+// store: "Tyler has eyeballed this change on staging" is a fact about one
+// person at one browser, and putting it on the wire would have the Cage A
+// Admin's device import a checkbox about a build it is not running.
+//
+// A PARSE FAILURE IS AN EMPTY MAP, never a throw: the ticks are a convenience
+// and a corrupted key must not be able to take the drawer down with it.
+const WHATS_NEW_TESTED_KEY = 'ibno_whats_new_tested';
+
+function whatsNewTestedMap() {
+  try {
+    const raw = localStorage.getItem(WHATS_NEW_TESTED_KEY);
+    const obj = raw ? JSON.parse(raw) : null;
+    return (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {};
+  } catch (e) { return {}; }
+}
+
+function whatsNewIsTested(pr) {
+  return whatsNewTestedMap()[String(pr)] === true;
+}
+
+// Writing DELETES a false rather than storing it, so the key holds only the
+// ticks — an unticked card is the default and does not need a record.
+function whatsNewSetTested(pr, on) {
+  const map = whatsNewTestedMap();
+  if (on) map[String(pr)] = true; else delete map[String(pr)];
+  try { localStorage.setItem(WHATS_NEW_TESTED_KEY, JSON.stringify(map)); } catch (e) { /* full or blocked: the UI still moves */ }
+  whatsNewApplyTested(pr, !!on);
+}
+
+// The tick moves the card without re-rendering the drawer. A re-render would
+// re-read the file, close every card the reader had opened and scroll them
+// back to the top — three surprises for one checkbox. Each card carries its
+// ship rank in data-rank, so the list can be re-sorted in place: unticked
+// first in ship order, ticked below in the same order.
+function whatsNewApplyTested(pr, on) {
+  const list = document.getElementById('wn-list');
+  if (!list) return;
+  const item = list.querySelector('.wn-item[data-pr="' + String(pr) + '"]');
+  if (item) {
+    item.classList.toggle('is-tested', on);
+    const tick = item.querySelector('.wn-tick');
+    if (tick) tick.textContent = on ? '✓' : '';
+    const box = item.querySelector('.wn-tested-box');
+    if (box) box.checked = on;
+  }
+  const items = Array.prototype.slice.call(list.querySelectorAll('.wn-item'));
+  items.sort(function (a, b) {
+    const at = a.classList.contains('is-tested') ? 1 : 0;
+    const bt = b.classList.contains('is-tested') ? 1 : 0;
+    if (at !== bt) return at - bt;
+    return Number(a.getAttribute('data-rank')) - Number(b.getAttribute('data-rank'));
+  });
+  items.forEach(function (el) { list.appendChild(el); });
+  const sub = document.querySelector('#whats-new-panel .wn-sub');
+  if (sub) {
+    sub.textContent = whatsNewSubline(items.length,
+      items.filter(function (el) { return el.classList.contains('is-tested'); }).length);
+  }
+}
+
+// "N waiting for production · M tested · in the order they will ship". The
+// third clause stays (#1021 review): the list is sorted by the rank git gave
+// the queue issue, and the subtitle may not claim an order it is not using.
+function whatsNewSubline(pending, tested) {
+  return pending + ' waiting for production · ' + tested + ' tested · in the order they will ship';
+}
+
+function whatsNewToggleCard(pr) {
+  const item = document.querySelector('#whats-new-panel .wn-item[data-pr="' + String(pr) + '"]');
+  if (!item) return false;
+  const detail = item.querySelector('.wn-detail');
+  const btn = item.querySelector('.wn-item-toggle');
+  const open = detail.hasAttribute('hidden');
+  if (open) detail.removeAttribute('hidden'); else detail.setAttribute('hidden', '');
+  item.classList.toggle('is-open', open);
+  if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  const chev = item.querySelector('.wn-chev');
+  if (chev) chev.textContent = open ? '▾' : '▸';
+  return open;
+}
+
+// One note, CLOSED (#1028): the title, a tick if it has been tested, and the
+// summary's first sentence. Opening it shows three labelled blocks — What
+// changed, Watch for, Try it — and the meta line.
+//
+// EVERY piece of text here is escaped: the notes are hand-written prose in a
+// JSON file, so an apostrophe or an angle bracket in a summary is ordinary,
+// and none of it may reach innerHTML raw.
+function whatsNewCard(e, rank) {
   const esc = ToolHelpers.escapeHtml;
+  const pr = String(e.pr);
+  const tested = whatsNewIsTested(e.pr);
   const steps = (e.howToSee || []).map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('');
-  return '<div class="wn-item" data-pr="' + esc(String(e.pr)) + '">' +
-    '<h3>' + esc(e.title) + '</h3>' +
-    '<div class="wn-sum">' + esc(e.summary) + '</div>' +
-    '<div class="wn-label">How to see it</div>' +
-    '<ol class="wn-steps">' + steps + '</ol>' +
-    '<div class="wn-meta">' +
-      '<span>merged ' + esc(e.mergedAt || 'not yet — in flight') + '</span>' +
-      '<a href="' + esc(whatsNewRepoUrl('pull', e.pr)) + '" target="_blank" rel="noopener">PR &#35;' + esc(String(e.pr)) + '</a>' +
+  const watch = (e.watchFor || []).map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('');
+  // No Watch for block when there is nothing to watch for: an empty heading
+  // reads as "we forgot to write this", which is worse than silence.
+  const watchBlock = watch
+    ? '<div class="wn-label">Watch for</div><ul class="wn-watch">' + watch + '</ul>'
+    : '';
+  const lead = ReleaseNotes.firstSentence(e.summary);
+  return '<div class="wn-item' + (tested ? ' is-tested' : '') + '" data-pr="' + esc(pr) +
+      '" data-rank="' + esc(String(rank)) + '">' +
+    '<div class="wn-item-head">' +
+      '<h3><button type="button" class="wn-item-toggle" aria-expanded="false" ' +
+        'aria-controls="wn-detail-' + esc(pr) + '" onclick="whatsNewToggleCard(' + esc(pr) + ')">' +
+        '<span class="wn-chev" aria-hidden="true">▸</span>' +
+        '<span class="wn-title"><span class="wn-tick">' + (tested ? '✓' : '') + '</span>' + esc(e.title) +
+        '<span class="wn-lead">' + esc(lead) + '</span></span>' +
+      '</button></h3>' +
+      '<label class="wn-tested"><input type="checkbox" class="wn-tested-box"' + (tested ? ' checked' : '') +
+        ' onchange="whatsNewSetTested(' + esc(pr) + ', this.checked)">Tested</label>' +
+    '</div>' +
+    '<div class="wn-detail" id="wn-detail-' + esc(pr) + '" hidden>' +
+      '<div class="wn-label">What changed</div>' +
+      '<div class="wn-sum">' + esc(e.summary) + '</div>' +
+      watchBlock +
+      '<div class="wn-label">Try it</div>' +
+      '<ol class="wn-steps">' + steps + '</ol>' +
+      '<div class="wn-meta">' +
+        '<span>merged ' + esc(e.mergedAt || 'not yet — in flight') + '</span>' +
+        '<a href="' + esc(whatsNewRepoUrl('pull', e.pr)) + '" target="_blank" rel="noopener">PR &#35;' + esc(String(e.pr)) + '</a>' +
+      '</div>' +
     '</div></div>';
 }
 
