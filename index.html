@@ -903,6 +903,18 @@
        as that tick: "you wrote on this one", never a second call to action. */
     .wn-note-mark { color: var(--text-faint); margin-right: 4px; }
     .wn-copy-all { font-size: 12px; margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    /* The token row. Same field chrome as the rest of the tool (--field-bg /
+       --border-strong), so dark mode arrives through theme.css with no rule of
+       its own — the standing trap on this panel. */
+    .wn-token-row { margin-top: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+    .wn-token-help { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; line-height: 1.45; }
+    .wn-token-controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .wn-token-input {
+      flex: 1 1 180px; min-width: 0; padding: 4px 8px; font-size: 12px;
+      border: 1px solid var(--border-strong); border-radius: 4px;
+      background: var(--field-bg); color: var(--text);
+    }
+    .wn-token-input:focus { outline: none; border-color: var(--brand-ink); }
 
     /* ── Manual review action cell ───────────────────────────────────────────── */
     .action-cell { white-space: nowrap; padding: 6px 12px !important; }
@@ -3546,9 +3558,15 @@ function renderWhatsNew() {
     // unconditionally — a disabled-when-empty button would answer "why can I
     // not click this?" with silence, where a click that says "Nothing written
     // yet" answers it.
+    // Copy all is always there; the token row is how Send gets a credential that
+    // can actually reach the repo. Both live in the head so a reader who has
+    // just been told "set one above" has somewhere to look.
     const copyAll = '<div class="wn-copy-all">' +
       '<button type="button" class="btn btn-gray" id="wn-copy-all" onclick="whatsNewCopyAll()">Copy all feedback</button>' +
-      '<span class="wn-fb-status" id="wn-copy-all-status"></span></div>';
+      '<button type="button" class="btn btn-gray" id="wn-token-toggle" onclick="whatsNewToggleTokenRow()">' +
+      (whatsNewHasToken() ? 'GitHub token ✓' : 'GitHub token') + '</button>' +
+      '<span class="wn-fb-status" id="wn-copy-all-status"></span></div>' +
+      whatsNewTokenRow();
 
     panel.innerHTML = whatsNewHead(
       '✨ What’s new on staging',
@@ -3838,8 +3856,91 @@ function whatsNewHasToken() {
 // token. BOTH are keys the tool already holds — nothing new is written, and
 // neither is copied anywhere: the winner goes into one Bearer header and is
 // dropped when the request resolves.
+const FEEDBACK_TOKEN_KEY = 'ibno_feedback_token';
+
+// THE TOKEN ROW. Collapsed until asked for, because a token field on open is a
+// prompt to paste a secret at a machine nobody asked to be secure at.
+//
+// type="password" and autocomplete="off": the value must not be shoulder-read
+// in the cage and must not be offered back by the browser on another device.
+// The field is never PRE-FILLED with the stored token — the row reports whether
+// one is set, which is the only thing a reader needs, and a token that is never
+// written back into the DOM cannot be read out of a screenshot or a snapshot.
+// Written through toolStorage so it is JSON-encoded exactly like the two it
+// sits beside; reading it back through the same helper is what #1032 was about.
+function whatsNewTokenRow() {
+  const esc = ToolHelpers.escapeHtml;
+  const has = whatsNewHasToken();
+  return '<div class="wn-token-row" id="wn-token-row" hidden>' +
+    '<div class="wn-token-help">A token that can comment on ' +
+      esc(whatsNewOwner() + '/' + WHATS_NEW_REPO) + '. Needs Issues: read and write. ' +
+      'Saved on this device only, and never copied or exported.</div>' +
+    '<div class="wn-token-controls">' +
+      '<input type="password" id="wn-token-input" class="wn-token-input" autocomplete="off" ' +
+        'spellcheck="false" aria-label="GitHub token for feedback" placeholder="' +
+        (has ? 'A token is set — paste a new one to replace it' : 'Paste a token') + '">' +
+      '<button type="button" class="btn btn-gray" onclick="whatsNewSaveToken()">Save</button>' +
+      (has ? '<button type="button" class="btn btn-gray" onclick="whatsNewClearToken()">Clear</button>' : '') +
+    '</div>' +
+    '<div class="wn-fb-status" id="wn-token-status">' + (has ? 'A token is set on this device.' : '') + '</div>' +
+    '</div>';
+}
+
+function whatsNewToggleTokenRow() {
+  const row = document.getElementById('wn-token-row');
+  if (!row) return false;
+  const opening = row.hasAttribute('hidden');
+  if (opening) { row.removeAttribute('hidden'); const i = document.getElementById('wn-token-input'); if (i) i.focus(); }
+  else row.setAttribute('hidden', '');
+  return opening;
+}
+
+// The write. The field is CLEARED on save whether or not the write landed: the
+// point is that the secret does not sit in a DOM node after it has a home, and
+// a failed write is reported rather than left recoverable from the box.
+function whatsNewSaveToken() {
+  const input = document.getElementById('wn-token-input');
+  if (!input) return false;
+  const value = String(input.value || '').trim();
+  input.value = '';
+  if (!value) { whatsNewSetTokenStatus('Nothing pasted — the token is unchanged.'); return false; }
+  let ok = false;
+  try { ok = toolStorage.set(FEEDBACK_TOKEN_KEY, value); } catch (e) { ok = false; }
+  whatsNewSetTokenStatus(ok
+    ? 'Saved on this device. Send to GitHub is on every card now.'
+    : 'Could not save the token on this device.');
+  if (ok) renderWhatsNew();
+  return ok;
+}
+
+function whatsNewClearToken() {
+  try { localStorage.removeItem(FEEDBACK_TOKEN_KEY); } catch (e) {}
+  whatsNewSetTokenStatus('Cleared from this device.');
+  renderWhatsNew();
+  return true;
+}
+
+function whatsNewSetTokenStatus(msg) {
+  const el = document.getElementById('wn-token-status');
+  if (el) el.textContent = msg;
+}
+
+
+
+// THE FEEDBACK TOKEN IS ITS OWN KEY, AND IT IS TRIED FIRST (Tyler, 2026-09-14).
+// The 401 fix got the header right and then produced a 404, which is what
+// GitHub returns when a valid token cannot SEE a private repo. Neither sync
+// token can: the desk channel's is scoped to the desk areas repo and the
+// entries channel's to whatever that channel points at, while a comment goes to
+// the private `work` repo. Overloading either key would mean widening a
+// credential that another channel depends on, and a token that has to satisfy
+// two repos is one someone eventually narrows for the other's sake. So the
+// sender gets its own key, set from the drawer. The old two stay as fallbacks:
+// if one of them DOES reach the repo, the feature keeps working untouched.
 function whatsNewToken() {
   try {
+    const own = whatsNewReadToken(FEEDBACK_TOKEN_KEY);
+    if (own) return own;
     const sync = whatsNewReadToken(SYNC_TOKEN_KEY);
     if (sync) return sync;
     return whatsNewReadToken(DESK_TOKEN_KEY);
@@ -3862,6 +3963,28 @@ function whatsNewToken() {
 // by some future path that does not encode — and it strips a symmetric pair of
 // quotes for the same reason. A JSON object or array is not a token and is
 // refused rather than stringified into a header.
+// WHAT THE NUMBER MEANS, NOT THE NUMBER. Each of these is a DIFFERENT next
+// step and the operator cannot tell them apart from a bare code:
+//   401  the credential itself is refused — expired, revoked, or mistyped.
+//   403  the token is real and is not allowed to comment (rate limit, or a
+//        fine-grained token holding read-only Issues).
+//   404  the token is real and cannot SEE the repo. GitHub does not admit a
+//        private repo exists to a token without access, so this is the shape a
+//        wrong-repo token takes. It is what the desk token returns: that one is
+//        scoped to the desk areas repo, not to `work` (Tyler, 2026-09-14).
+// The note is never dropped in any branch, and that is said every time.
+function whatsNewSendError(code) {
+  const tail = ' Your note is still here.';
+  if (code === 401) return 'The token was refused (401). Set a new one with GitHub token above.' + tail;
+  if (code === 403) return 'That token is not allowed to comment (403). It needs Issues: read and write.' + tail;
+  if (code === 404) {
+    return 'That token cannot see the ' + whatsNewOwner() + '/' + WHATS_NEW_REPO + ' repo (404). ' +
+      'A token scoped to another repo looks exactly like this. Set one with Issues access above.' + tail;
+  }
+  if (!code) return 'No answer from GitHub.' + tail;
+  return 'Could not send (' + code + ').' + tail;
+}
+
 function whatsNewReadToken(key) {
   let viaHelper = null;
   try { viaHelper = toolStorage.get(key, null); } catch (e) { viaHelper = null; }
@@ -4018,8 +4141,8 @@ function whatsNewSendFeedback(pr) {
   })).then(function (r) {
     if (!r || r.status !== 201) {
       delete whatsNewSending[key];
-      const code = r && r.status ? r.status : 'no response';
-      whatsNewSetStatus(key, ToolHelpers.escapeHtml('Could not send (' + code + ') — your note is still here.'));
+      const code = r && r.status ? r.status : 0;
+      whatsNewSetStatus(key, ToolHelpers.escapeHtml(whatsNewSendError(code)));
       if (send) send.disabled = false;
       return false;
     }

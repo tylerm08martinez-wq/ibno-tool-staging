@@ -311,6 +311,29 @@
       "commit": "868f1af",
       "shippedAt": null,
       "order": 13
+    },
+    {
+      "id": "pr-1033",
+      "pr": 1033,
+      "issue": null,
+      "tool": "ibno-coder",
+      "title": "Set a GitHub token for feedback, and failures that tell you what to do",
+      "summary": "Send to GitHub now has its own token, set from a GitHub token button in the drawer, so it does not have to borrow one from a sync channel that points at a different repo. When a send fails, the line under the box says what went wrong and what to do about it.",
+      "watchFor": [
+        "A token scoped to another repo gets a 404, not a permission error. The message now says so.",
+        "The token is saved on this device only. It is never copied, exported, or shown again after you save it.",
+        "If no token is set, Send is hidden and Copy all feedback still works."
+      ],
+      "howToSee": [
+        "Open What’s new and click GitHub token",
+        "Paste a token with Issues read and write on the work repo, and click Save",
+        "Send to GitHub appears on every card",
+        "Send a note and read the line under the box"
+      ],
+      "mergedAt": "2026-09-14",
+      "commit": "8b5a07f",
+      "shippedAt": null,
+      "order": 14
     }
   ],
   "queueIssue": 1025
