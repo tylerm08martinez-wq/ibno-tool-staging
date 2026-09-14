@@ -262,9 +262,10 @@
         "Tick Tested on a card and watch it drop to the bottom",
         "Reload the page, open the drawer again, and the tick is still there"
       ],
-      "mergedAt": null,
-      "commit": null,
-      "shippedAt": null
+      "mergedAt": "2026-09-14",
+      "commit": "0a12b4a",
+      "shippedAt": null,
+      "order": 11
     }
   ],
   "queueIssue": 1025
