@@ -453,9 +453,10 @@
         "Wait for your screen to pick it up; the box shows 140 with their name",
         "Tick that row, click Barcode selected, and read the card: 140 with the unconfirmed line under it"
       ],
-      "mergedAt": null,
-      "commit": null,
-      "shippedAt": null
+      "mergedAt": "2026-09-18",
+      "commit": "658ceb3",
+      "shippedAt": null,
+      "order": 19
     }
   ],
   "queueIssue": 1025
