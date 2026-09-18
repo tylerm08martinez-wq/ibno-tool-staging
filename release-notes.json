@@ -353,9 +353,10 @@
         "No details panel opens under any of them and the list does not move",
         "Click the address on the next row down: the details still open there"
       ],
-      "mergedAt": null,
-      "commit": null,
-      "shippedAt": null
+      "mergedAt": "2026-09-18",
+      "commit": "14c6b15",
+      "shippedAt": null,
+      "order": 15
     },
     {
       "id": "pr-1048",
@@ -377,10 +378,10 @@
         "Type 503 into another row’s Goes To instead: that one stays in the list",
         "Click Clear 503 on the tab row and the first package comes back"
       ],
-      "mergedAt": null,
-      "commit": null,
+      "mergedAt": "2026-09-18",
+      "commit": "a8b5940",
       "shippedAt": null,
-      "order": 15
+      "order": 16
     },
     {
       "id": "pr-1049",
@@ -401,9 +402,34 @@
         "Press F5 — that section is open again and the rest are still shut",
         "Use the Collapse all and Expand all buttons in the purple bar at the top of the page"
       ],
-      "mergedAt": null,
-      "commit": null,
-      "shippedAt": null
+      "mergedAt": "2026-09-18",
+      "commit": "9e8137b",
+      "shippedAt": null,
+      "order": 17
+    },
+    {
+      "id": "pr-1052",
+      "pr": 1052,
+      "issue": 1018,
+      "tool": "ibno-coder",
+      "title": "The production deploy refuses to run from the wrong branch",
+      "summary": "Sending the coder to the cage PC now stops unless the computer is on the release branch and that branch has been pushed. Deploys to the staging site are unchanged.",
+      "watchFor": [
+        "A refused deploy leaves the live site exactly as it was. Nothing is built and nothing is copied, so there is no half-finished update to clean up.",
+        "Sitting on a detached commit is refused too, even when it is the exact tip of release. Check the release branch out first.",
+        "If the release branch has commits that were never pushed, the deploy stops and tells you to push them first.",
+        "The refusal names the branch you are on and the exact commands to fix it."
+      ],
+      "howToSee": [
+        "Try a production deploy from a main checkout",
+        "Read the refusal: it names the branch you are on and what to run instead",
+        "Check out the release branch and run the same command again",
+        "The deploy runs as before and the live site updates"
+      ],
+      "mergedAt": "2026-09-18",
+      "commit": "0c84a21",
+      "shippedAt": null,
+      "order": 18
     }
   ],
   "queueIssue": 1025
