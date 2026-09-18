@@ -8928,7 +8928,7 @@ function build503Row(item) {
   tr.dataset.label = item.label;
   tr.innerHTML =
     '<td class="mono"><span class="label-copy" title="Click to copy">' + ToolHelpers.escapeHtml(item.label) + '</span>' +
-      '<span class="row-chips">' + FTrack.ftrackLink(item.label) + setAsideBarcodeChip(item) + streetChip(item) + '</span></td>' +
+      '<span class="row-chips">' + FTrack.ftrackLink(item.label) + setAsideBarcodeChip(item) + streetChip(item) + eopsChip(item) + '</span></td>' +
     '<td class="cat-text">' + ToolHelpers.escapeHtml(item.category || '\u2014') + '</td>' +
     '<td class="cat-text">' + ToolHelpers.escapeHtml(item.ibWork || '\u2014') + '</td>' +
     '<td>' + recipientCellHtml(item.firm, item.address) + '</td>' +
@@ -9433,7 +9433,12 @@ function copyStationList() {
 //                    into Needs Review (story 21)
 //   came in ........ the REPORT's INBOUND_DATE, with a first-seen fallback
 //
-// Text via textContent, never innerHTML: every value here is report data.
+// Four of the five cells are written with textContent, because every value in
+// them is report data. The tracking cell is the exception (#1035): it builds
+// the click-to-copy span and the two chips as innerHTML, and every value that
+// reaches it is escaped first — the label through ToolHelpers.escapeHtml here,
+// and the two hrefs inside FTrack.ftrackLink and eopsChip, which escape their
+// own. Nothing else in this function may take that as licence.
 function buildStationRow(item) {
   const it = item || {};
   const tr = document.createElement('tr');
@@ -9447,6 +9452,29 @@ function buildStationRow(item) {
   ].forEach(([cls, text]) => {
     const td = document.createElement('td');
     td.className = cls;
+    if (cls === 'station-track') {
+      // THE TRACKING CELL EVERY OTHER TAB ALREADY RENDERS (#1035). This was
+      // plain textContent, which made the Station tab the one surface where a
+      // tracking number could not be clicked to copy and carried no FTrack link
+      // — on the rows Tyler is most likely to be looking up, because a station
+      // package sits in the cage for days.
+      //
+      // .row-chips is not decoration: attachLabelCopy's TRACKING_CELL_OPT_OUT
+      // already names .ftrack-link and .eops-link, so a chip click falls through
+      // WITHOUT copying and without stopping propagation, exactly as it does on
+      // the Parked and 503 rows.
+      //
+      // E-OPS is express-gated through the page's own eopsChip, so a ground
+      // station package renders FTrack alone (lib/eops.js: express only, by
+      // intent). The flag reaches this row through StationStore.ROW_FIELDS —
+      // the pane draws the STORE's entry, not the report row.
+      td.className = cls + ' mono';
+      td.innerHTML = '<span class="label-copy" title="Click to copy">' +
+        ToolHelpers.escapeHtml(text) + '</span>' +
+        '<span class="row-chips">' + FTrack.ftrackLink(text) + eopsChip(it) + '</span>';
+      tr.appendChild(td);
+      return;
+    }
     td.textContent = text;
     // #1004 review, finding 4: the fallback says WHY it is a fallback on hover.
     // The "seen " prefix in the cell is the visible tell; this is the sentence
@@ -9462,6 +9490,19 @@ function buildStationRow(item) {
   // The row's state, on the row itself, so a reader (and a test) can ask what
   // one row is without re-deriving it from which pill happens to be in a cell.
   tr.dataset.stationState = StationStore.rowState(it);
+  // THE BARCODE AND THE COPY OPTIONS, exactly as every other tab passes them
+  // (#1035 review finding 1). Station rows are routinely EARLY rows: both
+  // stationIngestItems() and ingestStationDrop() build from
+  // IbnoParked.loadedItems([manualItems, shapedEarlyItems()]), and under ADR
+  // 0021 the Post Sort report holds the main slot — it is the report the admins
+  // actually work. PostSortLane.earlyReviewFields stamps those rows
+  // provenance: 'early' and carries their resolved barcode as scanBarcode, so a
+  // station cell that dropped both would answer barcode mode with the tracking
+  // number on a resolved row (#746 verbatim) and with a 9-11 character value
+  // that does not scan on an unresolved one (#750). `it` is the STORE's entry,
+  // which is why lib/station-store.js's ROW_FIELDS had to learn the two fields:
+  // the pane draws the entry, never the report row.
+  attachLabelCopy(tr, it.label || '', it.scanBarcode, copyOptsFor(it));
   tr.appendChild(buildStationActionCell(it));
   return tr;
 }
@@ -10199,7 +10240,7 @@ function buildParkedRow(item, badges) {
   tr.innerHTML =
     '<td class="mono"><span class="label-copy" title="Click to copy">' + ToolHelpers.escapeHtml(item.label) + '</span>' +
       carriedParkMarker(item.label) +
-      '<span class="row-chips">' + FTrack.ftrackLink(item.label) + setAsideBarcodeChip(item) + streetChip(item) + '</span></td>' +
+      '<span class="row-chips">' + FTrack.ftrackLink(item.label) + setAsideBarcodeChip(item) + streetChip(item) + eopsChip(item) + '</span></td>' +
     '<td class="cat-text">' + ToolHelpers.escapeHtml(item.category || '\u2014') + '</td>' +
     '<td class="cat-text">' + ToolHelpers.escapeHtml(item.ibWork || '\u2014') + '</td>' +
     '<td>' + recipientCellHtml(item.firm, item.address) + '</td>' +
@@ -21847,7 +21888,7 @@ function renderResolvedSection() {
       ? '<span class="express-pill express-yes">Express</span>'
       : '<span class="express-pill express-no">Ground</span>';
     tr.innerHTML =
-      '<td class="mono"><span class="expand-indicator">&#9654;</span><span class="label-copy" title="Click to copy">' + ToolHelpers.escapeHtml(label) + '</span>' + recurringPill(label) + FTrack.ftrackLink(label) + '</td>' +
+      '<td class="mono"><span class="expand-indicator">&#9654;</span><span class="label-copy" title="Click to copy">' + ToolHelpers.escapeHtml(label) + '</span>' + recurringPill(label) + FTrack.ftrackLink(label) + eopsChip(item) + '</td>' +
       '<td>' + codeHtml + '</td>' +
       '<td class="cat-text">' + ToolHelpers.escapeHtml(category) + '</td>' +
       '<td class="cat-text">' + ToolHelpers.escapeHtml(ibWork || '—') + '</td>' +

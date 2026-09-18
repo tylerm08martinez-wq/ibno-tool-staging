@@ -457,6 +457,29 @@
       "commit": "658ceb3",
       "shippedAt": null,
       "order": 19
+    },
+    {
+      "id": "pr-1055",
+      "pr": 1055,
+      "issue": 1035,
+      "tool": "ibno-coder",
+      "title": "FTrack and E-OPS links beside every tracking number",
+      "summary": "The Station tab tracking number is now click-to-copy with an FTrack link beside it. E-OPS links now sit next to FTrack on 503s, Parked and Manually Resolved as well.",
+      "watchFor": [
+        "E-OPS only appears on an Express package. A Ground row shows FTrack alone, which is right - there is no E-OPS entry to open for a Ground package.",
+        "Clicking either link never copies the tracking number and never opens the row. Click the number itself to copy it - on Full barcode it copies the scan barcode instead.",
+        "A station package the report has stopped carrying keeps both links, so you can still look it up while it sits in the cage.",
+        "Repeat History and the Recurring list still show FTrack alone. Neither one records whether a package was Express."
+      ],
+      "howToSee": [
+        "Load the Inbound and Van Scans report",
+        "Open Set aside and click Station",
+        "Click a tracking number to copy it, then click FTrack beside it",
+        "Find an Express row in Needs Manual Review and check E-OPS sits next to FTrack"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
     }
   ],
   "queueIssue": 1025
