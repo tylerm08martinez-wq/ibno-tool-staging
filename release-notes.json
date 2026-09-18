@@ -477,9 +477,10 @@
         "Click a tracking number to copy it, then click FTrack beside it",
         "Find an Express row in Needs Manual Review and check E-OPS sits next to FTrack"
       ],
-      "mergedAt": null,
-      "commit": null,
-      "shippedAt": null
+      "mergedAt": "2026-09-18",
+      "commit": "a801ede",
+      "shippedAt": null,
+      "order": 20
     }
   ],
   "queueIssue": 1025
