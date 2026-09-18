@@ -9026,7 +9026,7 @@ function build503Button(item) {
   btn.textContent = filed ? 'Clear 503' : '503';
   btn.title = filed
     ? 'Empty this row’s Goes To, returning it to the working list'
-    : 'File this bad address: types 503 into this row’s Goes To for you. The flag IS that value, so this does exactly what typing it does — same dock flex across the stop, same auto-log, same 503s tab, and no OPS2 code.';
+    : 'File this bad address AND hand it off, in one click: types 503 into this row’s Goes To for you — same dock flex across the stop, same auto-log, no OPS2 code — and then files the row, so it leaves this list for the 503s tab straight away. Typing 503 by hand is unchanged: that row stays here until you barcode and confirm it.';
   // ROUTED ON THE ROW'S OWN PROVENANCE, never on a label lookup (#746 review
   // finding 2). item.provenance === 'early' is the single signal for a Post
   // Sort row everywhere else on this page, and it is what the row's own Goes To
@@ -9049,9 +9049,132 @@ function build503Button(item) {
   // impossible instead of leaving it for #732 to discover.
   const commitFn = item && item.provenance === 'early' ? commitPostSortGoesTo : commitGoesTo;
   btn.addEventListener('click', () => {
-    commitFn(item.label, is503Area(item) ? '' : Ibno503.AREA);
+    const label = String(item && item.label != null ? item.label : '').trim();
+    if (!label) return;
+    // RE-ASKED AT CLICK TIME, never read off the render-time `filed` above: the
+    // toggle note at the top of this function is what that rule is for.
+    if (is503Label(label)) { clickClear503(label, commitFn); return; }
+    clickFile503(label, commitFn);
   });
   return btn;
+}
+
+// clickFile503(label, commitFn) -> the BUTTON's whole gesture (#1036): type the
+// flag, then hand the row off, in one click.
+//
+// Tyler, 2026-09-17: "503 button on Needs Manual Review should automatically
+// move the package to the 503 tab in Set aside, but typing in 503 should still
+// act the same." So this is the ONE place the click and the keystroke are
+// deliberately no longer identical, and #746's identical-state pin is NARROWED
+// rather than broken: everything about the FLAG is still the same write through
+// the same commit path — dock flex across the stop, the drift guard, the
+// auto-log, the storage refusal, no OPS2 code. What the click ADDS is the
+// second gesture, the one #944 moved to the barcode-confirm OK, and it adds it
+// through that gesture's OWN writer rather than a new one.
+//
+// markFiledBatch is that writer (lib/ibno-filed.js: the confirm panel is the
+// only writer of filed state, and markFiledBatch is that panel's writer, not a
+// second path into the store). Nothing here touches that module's semantics:
+// the row is filed because a human pressed a control whose label, tooltip and
+// toast all say it files the row, which is exactly what membership in that
+// store has always meant.
+//
+// ONE LABEL, NOT THE WHOLE STOP, and that is a decision rather than an
+// oversight. The commit above dock-flexes 503 across the stop, so a sibling at
+// the same unit now reads 503 too — and it STAYS in the working list, tagged,
+// exactly the way a typed 503 leaves it today (#944 decision 1). Filing the
+// siblings would hand off packages the supervisor never clicked; the clicked
+// package is the one he is holding, and the siblings keep the handoff path they
+// have had since #944.
+//
+// SO THE TOAST HAS TO SAY THE STOP WAS SPLIT (review finding 1 on #1048). The
+// behaviour above is right and stays; what was wrong was the SILENCE. Three
+// writes to the one #goesto-note pill land in a single synchronous pass here —
+// the commit's routine spread note, then announce503Filing's counted "N
+// packages at this stop, tagged and still in your list", then this function's
+// own toast — and the last one wins. That erased the only on-screen statement
+// that a dock-flexed stop had just been divided between the 503s tab (the
+// pallet handoff, copyAll503) and the working lane. The sibling count now rides
+// in the click's own toast instead, so nothing has to survive the overwrite.
+function clickFile503(label, commitFn) {
+  // THE COMMIT NOW ANSWERS WHICH ROWS IT TOUCHED. Both commitGoesTo and
+  // commitPostSortGoesTo return their result.changed for this one caller; every
+  // other call site ignores it exactly as before. Taken from the commit rather
+  // than from a second IbnoWorkLoop.dockFlexPlan call here because the two
+  // lanes build their `items` pool differently (manualAddressPairs vs
+  // postSortAddressPairs + manualAddressPairs) and a copy of that routing
+  // living in this function is the drift #746 finding 2 already paid for once.
+  const changed = commitFn(label, Ibno503.AREA);
+  // THE COMMIT CAN REFUSE THE WRITE, and filing a row the refusal left
+  // unflagged is the dangerous direction. canPersistArea turns a report with no
+  // readable sort day into a no-op and snaps the box back; setEarly's
+  // oursToTouch guard refuses to overwrite an area the Post Sort report itself
+  // confirmed ("Not changed: this row already has a confirmed area from the
+  // report"). markFiledBatch does not ask what the Goes To says, so a row filed
+  // after a refusal would leave the working list and land in ✅ Work area
+  // assigned — NOT the 503s tab — with the refusal notice on screen beside a
+  // package that had just disappeared. The flag itself is therefore the gate:
+  // no 503, no filing, and the commit's own refusal is left to speak.
+  if (!is503Label(label)) return;
+  // THE SIBLINGS THIS CLICK TAGGED AND DID NOT FILE, counted BEFORE the filing
+  // so the store it reads is the one the commit left. Same population
+  // announce503Filing counts — rows this write moved INTO 503 — minus the
+  // clicked one, minus anything already handed off, because "still in your
+  // list" has to be true of every package the number claims.
+  const stillInLane = (Array.isArray(changed) ? changed : []).filter(
+    l => l !== label && is503Label(l) && !IbnoFiled.isFiled(filedStore, l));
+  // THE ADVANCE COPY, COMPUTED AND ISSUED SYNCHRONOUSLY, BEFORE the row is torn
+  // out (#966). Park already copies the street of the row it lands on; this
+  // click now has the thing #966 needs and the keystroke does not — a row that
+  // really is leaving the list, so the cursor really does advance. It has to
+  // run before markFiledBatch, which re-renders in line: copyWorkAdvanceStreet
+  // reads the landing row off the DOM as it stands. It self-guards on "the
+  // cursor did not move", so filing a row Tyler is NOT parked on copies nothing
+  // and never replaces the clipboard under him.
+  copyWorkAdvanceStreet([label]);
+  // The advance itself is markFiledBatch's own restoreWorkCursor: the filed
+  // label is the cursor's, so it passes '' and the SLOT is kept, landing the
+  // cursor on whatever row took this one's place. The rule Park already uses.
+  markFiledBatch([label]);
+  // LAST WRITE WINS on the single #goesto-note pill, deliberately. commitFn has
+  // just spoken announce503Filing's "tagged and still in your list; barcode
+  // them and confirm" — true of the keystroke, false of this click, because the
+  // row has already gone. Both writes land in ONE synchronous pass, so only
+  // this text is ever painted, and flashGoesToNote's textContent write removes
+  // that message's now-meaningless Undo along with it. A dock-flex DRIFT
+  // WARNING still outranks this note, which is the right way round: a package
+  // about to be walked to the wrong belt beats an affordance.
+  //
+  // WHICH IS WHY THE SPLIT-STOP CLAUSE IS PART OF THIS STRING and not a second
+  // flashGoesToNote call: a second call would simply overwrite the first, the
+  // same way this one overwrote announce503Filing's. One pill, one sentence.
+  // The clause is ABSENT on an ordinary single-package stop, so its presence
+  // always means the stop really was divided.
+  const n = stillInLane.length;
+  flashGoesToNote('Filed 503 · now in the 503s tab · Clear 503 to bring it back' +
+    (n ? ' · ' + n + ' other package' + (n === 1 ? ' at this stop is' : 's at this stop are') +
+      ' tagged 503 and still in your list — barcode ' + (n === 1 ? 'it' : 'them') +
+      ' and confirm' : ''));
+}
+
+// clickClear503(label, commitFn) -> the other half of the round trip (#1036
+// criterion 3): a mis-click is one click to undo, and the row comes back
+// UNFILED as well as unflagged.
+//
+// Through the SAME commit path the filing took, never a label lookup — the
+// whole of build503Button's routing note applies to the clear too.
+//
+// THE UNFILE BELOW IS A BACKSTOP AND IS A NO-OP ON THE ORDINARY PATH.
+// commit503 → unfileClearedHandedOff503 (#944) already takes the filing back
+// for every label this clear actually cleared, so the guard is false by the
+// time it is asked. It is asked anyway because the button's own title promises
+// "returning it to the working list", and a records-tier control must not owe
+// that promise to a predicate scoped inside a different function: if that
+// scoping ever narrows, this row still comes back. The guard is what keeps the
+// backstop from being a second, redundant write to the filed store.
+function clickClear503(label, commitFn) {
+  commitFn(label, '');
+  if (IbnoFiled.isFiled(filedStore, label)) unfileRow(label);
 }
 
 // ─── THE ✅ WORK AREA ASSIGNED TAB (#734) ────────────────────────────────────
@@ -11991,6 +12114,11 @@ function buildAutoRow(item, idx) {
   tr.lastElementChild.appendChild(btn);
   attachLabelCopy(tr, label, item.scanBarcode);
   tr.addEventListener('click', e => {
+    // Detached target = not a row click (#1039). Same reasoning as the Needs
+    // Manual Review row handler: a control that rewrites the row under its own
+    // click orphans e.target, and every `closest()` opt-out below then reads
+    // null and fails open.
+    if (e.target && !e.target.isConnected) return;
     if (e.target.closest('.copy-row-btn') || e.target.closest('.code-select') || e.target.closest('.label-copy') || e.target.closest('.ftrack-link') || e.target.closest('.eops-link') || e.target.closest('.barcode-chip') || e.target.closest('.street-chip') || e.target.closest('.street-copy') || e.target.closest('.addr-copy')) return;
     toggleDetailRow(tr, item, 8);
   });
@@ -15717,6 +15845,12 @@ function commitGoesTo(label, raw) {
   // named and the 999 Desk sync is configured, so an unconfigured tool behaves
   // exactly as it did before this feature.
   scheduleDeskPublish();
+  // WHICH ROWS THIS WRITE TOUCHED, for the one caller that has to speak about
+  // the stop it just split (clickFile503, #1036 / review finding 1 on #1048).
+  // Every other call site is a statement, not an expression, and is unchanged;
+  // a refused write returns undefined from the early return above, which that
+  // caller already treats as "no siblings".
+  return result.changed;
 }
 
 // ─── TYPING WINS, DISAGREEMENT SURFACES (issue #901, DECIDED by Tyler) ──────
@@ -18038,6 +18172,10 @@ function commitPostSortGoesTo(label, raw) {
   // only commitGoesTo would have shipped a feature that does nothing on the day
   // it was built for (#732/#744/#745 are that mistake).
   scheduleDeskPublish();
+  // The same answer commitGoesTo now returns, for the same caller and the same
+  // reason — and BOTH lanes, because ADR 0021 gives the Post Sort report the
+  // main slot, so this is the lane the split stop actually happens on.
+  return result.changed;
 }
 
 let goesToNoteTimer = null;
@@ -21151,6 +21289,19 @@ function buildManualRow(item, bucket) {
   // own delegated copy listener, but this handler runs first — so clicking the
   // street copied it AND opened the detail dropdown under his hand.
   tr.addEventListener('click', e => {
+    // A DETACHED TARGET IS NOT A ROW CLICK (#1039).
+    //
+    // Every opt-out below is a `closest()` call, and `closest()` walks
+    // parentNode. A control inside this row may have rewritten the DOM
+    // synchronously during this same click — markRowCoded empties the whole
+    // action cell — which orphans e.target, so every one of those reads comes
+    // back null and the opt-out silently fails open. The node is still the
+    // element the browser dispatched to; it is simply no longer in the
+    // document, and a click on something the page has already removed cannot
+    // mean "open this row's detail". The buttons that do the detaching also
+    // stopPropagation (pill, Apply, Done) — this is the far-side half, so a
+    // future cell-rebuilding control is safe before anyone remembers why.
+    if (e.target && !e.target.isConnected) return;
     if (e.target.closest('.action-cell') || e.target.closest('.label-copy') || e.target.closest('.chk-cell') || e.target.closest('.ftrack-link') || e.target.closest('.eops-link') || e.target.closest('.barcode-chip') || e.target.closest('.street-chip') || e.target.closest('.street-copy') || e.target.closest('.addr-copy') || e.target.closest('.goesto-cell')) return;
     toggleDetailRow(tr, item, MANUAL_COLSPAN);
   });
@@ -21190,7 +21341,16 @@ function buildActionCell(item, tr) {
     quickBtn.textContent = quick;
     const q = ScanCodes.meaning(quick, 'status');
     quickBtn.title = 'Code ' + quick + (q ? ' (' + q + ')' : '') + ' + done';
-    quickBtn.addEventListener('click', () => {
+    // STOP THE CLICK HERE (#1039). resolveItem -> markRowCoded empties THIS
+    // cell (`cell.innerHTML = ''`) synchronously, during this very click — so
+    // by the time the event bubbles to the row's own handler, e.target is an
+    // orphan whose `.closest('.action-cell')` opt-out returns null. The opt-out
+    // then silently fails and the row opens its detail dropdown under every
+    // pill click, which is the opposite of the one-click batch coding the pill
+    // exists for. The row handler also guards on `isConnected`; this is the
+    // near-side half of the pair, next to the writer that does the detaching.
+    quickBtn.addEventListener('click', e => {
+      e.stopPropagation();
       resolveItem(Object.assign({}, item, { code: quick, skipped: false }), tr);
     });
     td.appendChild(quickBtn);
@@ -21219,7 +21379,10 @@ function buildActionCell(item, tr) {
   const applyBtn = document.createElement('button');
   applyBtn.className = 'btn-apply-mini';
   applyBtn.textContent = 'Apply';
-  applyBtn.addEventListener('click', () => {
+  applyBtn.addEventListener('click', e => {
+    // Same detach hazard as the quick pill above (#1039): resolveItem rebuilds
+    // this cell mid-click, so this click must not reach the row handler.
+    e.stopPropagation();
     const code = input.value.trim();
     if (!code) { input.focus(); return; }
     // Sanity-check against the known code set — non-blocking, so a deliberate
@@ -21235,7 +21398,12 @@ function buildActionCell(item, tr) {
   doneBtn.className = 'btn-done-mini';
   doneBtn.textContent = 'Done';
   doneBtn.title = 'Mark resolved without entering a code';
-  doneBtn.addEventListener('click', () => resolveItem(Object.assign({}, item, { code: '', skipped: true }), tr));
+  // stopPropagation for the same reason as the pill and Apply (#1039): Done
+  // resolves through the same path, which empties this cell under the click.
+  doneBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    resolveItem(Object.assign({}, item, { code: '', skipped: true }), tr);
+  });
 
   // Park (#698): the DEFER state, not a resolution. It writes no record and
   // resolveItem is never reached: the row moves to the Parked tab in the Set
@@ -21425,6 +21593,12 @@ function resolveItem(item, tr) {
     bucket = tr.dataset.bucket;
     const detail = tr.nextElementSibling;
     if (detail && detail.classList.contains('detail-row')) detail.remove();
+    // The panel is gone, so the row is no longer OPEN (#1046 review). openedLabels()
+    // reads exactly this class before every manual re-render, so leaving it set makes
+    // the next repaint — a Post Sort event, a sort change, another row's Undo —
+    // resurrect the detail panel under the row Tyler just coded, which is the same
+    // annoyance #1039 exists to remove.
+    tr.classList.remove('row-open');
     // #697 (spec #690 story 32, #612 decision 2). The row used to be REMOVED
     // here. Tyler's call: "they should stay but let me filter them out." Dock
     // flex settles several rows at once, so rows vanishing in clumps while his
@@ -21570,6 +21744,15 @@ function renderResolvedSection() {
     tr.lastElementChild.appendChild(undoBtn);
     attachLabelCopy(tr, label, item.scanBarcode);
     tr.addEventListener('click', e => {
+      // Detached target = not a row click (#1039). Undo re-renders this whole
+      // table under its own click, so e.target IS detached by the time this runs —
+      // but the .btn-undo-mini opt-out below still matches anyway, because closest()
+      // tests the element ITSELF before it ever walks parentNode. That opt-out never
+      // failed and this guard did not rescue it (#1046 review). The guard is here so
+      // this handler carries the same rule as the Needs Manual Review one ahead of a
+      // future control that blanks its own PARENT cell the way markRowCoded does —
+      // that is the case closest() cannot survive.
+      if (e.target && !e.target.isConnected) return;
       if (e.target.closest('.btn-undo-mini') || e.target.closest('.label-copy') || e.target.closest('.ftrack-link') || e.target.closest('.eops-link') || e.target.closest('.addr-copy')) return;
       toggleDetailRow(tr, item, 8);
     });

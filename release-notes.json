@@ -334,6 +334,53 @@
       "commit": "8b5a07f",
       "shippedAt": null,
       "order": 14
+    },
+    {
+      "id": "pr-1046",
+      "pr": 1046,
+      "issue": 1039,
+      "tool": "ibno-coder",
+      "title": "Pressing 33 or 65 no longer opens the package details",
+      "summary": "The 33 and 65 buttons, Apply and Done now code the row and nothing else. The row stays where it is, at the same height, so the next button is still under your finger and you can run straight down the list.",
+      "watchFor": [
+        "The row still dims and shows Coded 33 with an Undo, the same as before.",
+        "Clicking anywhere else on the row — the name or address cell — still opens the details, on purpose.",
+        "If the row you code was showing its details, coding it closes them. Other rows you opened stay open."
+      ],
+      "howToSee": [
+        "Load today's Inbound and Van Scans report",
+        "In Needs Manual Review, click the orange 33 on four rows in a row as fast as you can",
+        "No details panel opens under any of them and the list does not move",
+        "Click the address on the next row down: the details still open there"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1048",
+      "pr": 1048,
+      "issue": 1036,
+      "tool": "ibno-coder",
+      "title": "The 503 button now moves the package to the 503s tab in one click",
+      "summary": "Clicking 503 on a Needs Manual Review row now tags it AND hands it off: the row leaves your list and shows up in the 503s tab right away. Typing 503 into Goes To works exactly as it did before — that row stays in your list until you barcode and confirm it.",
+      "watchFor": [
+        "Only the package you clicked is handed off. Another package at the same stop still gets the 503 tag, but stays in your list for the barcode sheet.",
+        "Clear 503 on the tab row brings the package back to your list and takes the filing back with it.",
+        "In Work mode the cursor moves to the next row after the click, and that row’s street goes on the clipboard, the same way Park already works.",
+        "The tool sometimes refuses to set the area, when the report has no readable sort date or already confirmed that area. Nothing is filed and you see the refusal instead."
+      ],
+      "howToSee": [
+        "Load today’s Post Sort report",
+        "Click 503 on a row in Needs Manual Review",
+        "Open Set aside and click 503s — the package is already there",
+        "Type 503 into another row’s Goes To instead: that one stays in the list",
+        "Click Clear 503 on the tab row and the first package comes back"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null,
+      "order": 15
     }
   ],
   "queueIssue": 1025
