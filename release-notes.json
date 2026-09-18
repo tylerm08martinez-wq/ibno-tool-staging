@@ -430,6 +430,32 @@
       "commit": "0c84a21",
       "shippedAt": null,
       "order": 18
+    },
+    {
+      "id": "pr-1047",
+      "pr": 1047,
+      "issue": 1038,
+      "alsoCloses": [
+        1051
+      ],
+      "tool": "ibno-coder",
+      "title": "The other desk's Goes To prints on the barcode card, and says if it is a guess",
+      "summary": "When the other desk types a Goes To, your printed card now shows that area instead of a dash. If they typed it on the post sort lane, the card carries the same unconfirmed line their own card carries.",
+      "watchFor": [
+        "An area they typed on the post sort lane prints with the line reading unconfirmed, post sort early guess, not yet scanned. Their card says the same thing, so the two desks agree.",
+        "An area they answered against the full report prints plain, with no line. The line is about which report a value was typed against, not about who typed it.",
+        "Both desks must be on this build. An older one refuses the new file and shows a dash again, and tells you to update that device.",
+        "A row with no area, or an area that came from the report itself, still prints a dash on purpose."
+      ],
+      "howToSee": [
+        "Load today's report on both desks and update both",
+        "On the other desk, type a Goes To on the post sort lane - say 140",
+        "Wait for your screen to pick it up; the box shows 140 with their name",
+        "Tick that row, click Barcode selected, and read the card: 140 with the unconfirmed line under it"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
     }
   ],
   "queueIssue": 1025

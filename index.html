@@ -20040,8 +20040,39 @@ function printBarcodeDialog() {
 // provenance, this returns '', and cardArea dashes it. A future writer that
 // puts a report-supplied, suggested (#625) or carried area into the store gets
 // a dash and a human, instead of a belt number and a walk.
+//
+// 'remote' IS ITS OWN ANSWER AND IS NEVER FOLDED INTO 'typed' (#1038). An area
+// the other desk typed arrives through ActualArea.setRemote and carries
+// `remote: true` and nothing else (ADR 0022, "remote is a fourth provenance"),
+// so before #1038 it matched none of the branches below, returned '' and
+// DASHED on the card — while the very same device's row showed the area in the
+// Goes To box. Tyler, 2026-09-17: "when they generate barcodes it shows only
+// the dash, so they don't know where to assign it."
+//
+// The fix names it rather than widening `typed`. #722's `typed: true` means "a
+// human typed this area ON THIS ROW, on this device"; answering 'typed' for a
+// value that arrived over the network would rebuild the catch-all that ticket
+// removed, one flag narrower. IbnoBarcodeSheet.PRINTABLE_PROVENANCE is where
+// the decision to PRINT it lives — this function still only reports what the
+// store holds, so the rule cannot drift into two places.
 function areaProvenanceOf(label) {
   if (!ActualArea.get(actualAreaStore, label)) return '';
+  // THE REMOTE ANSWER IS TWO ANSWERS (#1051). `remote` alone said where the
+  // area came from and nothing about how sure the desk it came from was, so an
+  // `early` Post Sort guess — which on a normal sort day is EVERY Goes To, and
+  // Tyler, 2026-09-17: "the admins only use the post sort" — printed caveated
+  // on the desk that typed it and PLAIN here. The envelope carries the claim
+  // now (RemoteAreas VERSION 2), and the fifth answer is what the card reads to
+  // put the #642 line back on it.
+  //
+  // THE SAFE POLE IS THE SILENT ONE. isRemoteConfirmed is false for a remote
+  // entry that says nothing — a VERSION 1 envelope from a device nobody has
+  // updated, a store persisted before #1051 — so those answer
+  // 'remote-unconfirmed' and print WITH the line. A redundant caveat costs a
+  // second glance; a missing one costs a walk.
+  if (ActualArea.isRemote(actualAreaStore, label)) {
+    return ActualArea.isRemoteConfirmed(actualAreaStore, label) ? 'remote' : 'remote-unconfirmed';
+  }
   if (ActualArea.isEarly(actualAreaStore, label)) return 'early';
   if (ActualArea.isAuto(actualAreaStore, label)) return 'auto';
   if (ActualArea.isTyped(actualAreaStore, label)) return 'typed';
@@ -20086,7 +20117,27 @@ function barcodeCardHtml(label, value, item, position) {
   // extend to the BARCODE: an unresolved or conflicting barcode is not a
   // guess a human can eyeball, so #667 refuses those cards outright rather
   // than marking them (see printBarcodesFor).
-  const early = area && ActualArea.isEarly(actualAreaStore, label);
+  //
+  // IT READS THE PROVENANCE, NOT `isEarly` (#1051). `isEarly` answers a
+  // different question — "did THIS device's Post Sort lane write it" — and it
+  // is false for an area the OTHER desk typed on their Post Sort lane and
+  // published without a confirmation claim, which is how the same assignment
+  // printed caveated on one desk and confident on the other. The rule now
+  // lives beside the allowlist, in IbnoBarcodeSheet, so the two decisions
+  // about that 30px line cannot drift apart in two files.
+  //
+  // THE WORDING LOST TWO WORDS FOR THE SAME REASON (/code-review on #1051).
+  // One string serves BOTH marked provenances, and "Post Sort early guess"
+  // overclaimed on the second one: a VERSION 1 envelope from a device nobody
+  // has updated carries no provenance at all, so this build cannot say the
+  // area came off the Post Sort lane — only that nobody has confirmed it
+  // against this report. "UNCONFIRMED — early guess, not yet scanned" is true
+  // in every case the mark can appear in, and keeps #642's single line rather
+  // than splitting it into per-provenance variants.
+  const early = IbnoBarcodeSheet.cardUnconfirmed({
+    area: ActualArea.get(actualAreaStore, label),
+    provenance: areaProvenanceOf(label),
+  });
   // The tick box (2026-08-14). ONE control serving both ways of working the
   // sheet, which is why it is a real <input type="checkbox"> rather than a
   // drawn square or a JS-only widget:
@@ -20110,7 +20161,7 @@ function barcodeCardHtml(label, value, item, position) {
       ' data-label="' + ToolHelpers.escapeHtml(label) + '" aria-label="Mark ' +
       ToolHelpers.escapeHtml(label) + ' done"><span class="tick-text">Done</span></label>' +
     '<div class="area">' + (area ? ToolHelpers.escapeHtml(area) : '&mdash;') + '</div>' +
-    (early ? '<div class="unconfirmed">UNCONFIRMED &mdash; Post Sort early guess, not yet scanned</div>' : '') +
+    (early ? '<div class="unconfirmed">UNCONFIRMED &mdash; early guess, not yet scanned</div>' : '') +
     '<div class="bars">' + svg + '</div>' +
     '<div class="val">' + ToolHelpers.escapeHtml(value) + '</div>' +
     '<div class="addr">' + ToolHelpers.escapeHtml((item && item.address) || '') + '</div>' +
