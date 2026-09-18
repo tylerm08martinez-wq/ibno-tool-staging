@@ -105,6 +105,22 @@
        switching used to mean scrolling back to the top. Here it is reachable
        from anywhere on the page, and it stays global (it also governs Manually
        Resolved and both Copy-selected buttons). */
+    .header-btn {
+      border: 1px solid rgba(255,255,255,0.28);
+      background: rgba(255,255,255,0.15);
+      color: white;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      padding: 6px 11px;
+      border-radius: 7px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .header-btn:hover { background: rgba(255,255,255,0.26); border-color: rgba(255,255,255,0.45); }
+    .header-btn:focus-visible { outline: 2px solid white; outline-offset: 2px; }
     .copyas-wrap { display: flex; align-items: center; gap: 9px; }
     .copyas-label {
       font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
@@ -2130,6 +2146,11 @@
       <button type="button" data-mode="barcode" onclick="setCopyMode('barcode')" title="Copy buttons put the full barcode on the clipboard (shortcut: B)">Full barcode<span class="kbd">B</span></button>
     </div>
   </div>
+  <!-- Collapse all / Expand all (#1040). In the sticky header, not in the
+       button row below the drop zone, so it is reachable from anywhere on a
+       long page. Hidden until a report is loaded, exactly as it was. -->
+  <button type="button" class="header-btn" id="collapse-all-btn" style="display:none"
+          onclick="toggleAllSections()" title="Fold every section shut, or open them all">&#10996; Collapse all</button>
   <span id="file-label">No file loaded</span>
 </header>
 
@@ -2340,7 +2361,6 @@
 <button class="btn btn-gray" id="merge-btn" style="display:none;margin-bottom:16px;" onclick="document.getElementById('merge-input').click()" title="Merge in early-sort rows dated today from a fresh copy of YESTERDAY's Inbound and Van Scans report.">&#8645; Merge yesterday's report</button>
 <input type="file" id="merge-input" accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onchange="handleMergeFile(this.files[0])">
 <div id="merge-status" style="display:none;margin-bottom:16px;font-size:13px;color:var(--text-faint);"></div>
-<button class="btn btn-gray" id="collapse-all-btn" style="display:none;margin-bottom:16px;" onclick="toggleAllSections()">&#10996; Collapse all</button>
 <button class="btn btn-purple" id="clean-export-btn" style="display:none;margin-bottom:16px;" onclick="exportCleanCSV()" title="Download the loaded Inbound and Van Scans report as a clean, Excel-ready CSV: SSRS preamble removed and tracking numbers/barcodes kept as text.">&#8595; Clean export</button>
 <div id="sort-date-note" style="display:none;margin-bottom:16px;font-size:13px;color:var(--text-faint);"></div>
 
@@ -3272,6 +3292,7 @@
 <script src="lib/day-export.js"></script>
 <script src="lib/area-conflicts.js"></script>
 <script src="lib/sort-day.js"></script>
+<script src="lib/view-collapse.js"></script>
 <!-- Park and the Parked tab (#698): the defer state's rules. A sort-day day
      store, loaded after sort-day.js whose day-store mechanics it delegates
      to, so park and the Goes To areas ride the same INBOUND_DATE clock. -->
@@ -6619,6 +6640,7 @@ function setSort(table, key, dir) {
     // page never re-collapses a bucket the supervisor is looking at behind his
     // back. resetViewControls closes them all on the next load or fresh pull.
     Object.keys(manualCollapsed).forEach(k => { manualCollapsed[k] = false; });
+    rememberBucketsOpen();   // #1040: the sweep is an expand, so it persists like one
   }
   if (table === 'auto' || table === 'express-auto') renderAutoSectionRows();
   else if (table === 'manual' || table === 'other-areas') {
@@ -6891,11 +6913,41 @@ function setOtherAreasOpen(open) {
   if (body) body.style.display = open ? 'block' : 'none';
   if (chevron) chevron.innerHTML = open ? '&#9662;' : '&#9656;';
   if (line) line.setAttribute('aria-expanded', open ? 'true' : 'false');
+  syncCountedLineClass('other-areas-section', open);
+}
+
+// syncCountedLineClass(id, open) -> keep the SECTION's `.collapsed` class in
+// step with a counted line's inline-display body (PR #1049 review finding 3).
+//
+// The two counted lines (#696 Other work areas, #698 Set aside) drive their own
+// bodies through the setters above rather than through `.collapsed`, so the
+// class and the body could disagree — and two readers key on the class:
+// syncCollapseAllButton() (the header button's label) and toggleAllSections()
+// (what the next click does). applyViewCollapse() sets `.collapsed` on these
+// sections and then a line click opened the body while the class still said
+// collapsed, so the header could read "Expand all" over an open line and a
+// Collapse-all click on that state EXPANDED instead.
+//
+// It lives in the setters, not in the two togglers, because the togglers are
+// not the only writers: clickSetAsideTab() opens and closes the Set aside body
+// too, and so does renderSetAside()'s empty case.
+//
+// Only `.section-header`'s border is affected visually — the chevrons here are
+// `.g-chevron`, not `.chev`, and each body is a `<div>` rather than a direct
+// child `<table>`, so neither `.section.collapsed > table` nor
+// `.section.collapsed .chev` reaches them. The class is a state marker for
+// those two readers.
+function syncCountedLineClass(id, open) {
+  const sec = document.getElementById(id);
+  if (sec) sec.classList.toggle('collapsed', !open);
 }
 function collapseOtherAreas() { setOtherAreasOpen(false); }
 function toggleOtherAreas() {
   const body = document.getElementById('other-areas-body');
-  setOtherAreasOpen(!!body && body.style.display === 'none');
+  const open = !!body && body.style.display === 'none';
+  setOtherAreasOpen(open);
+  rememberSectionOpen('other-areas-section', open);   // #1040
+  syncCollapseAllButton();
 }
 
 // ─── SET ASIDE: THE PARKED TAB (#698) ───────────────────────────────────────
@@ -6912,10 +6964,14 @@ function setSetAsideOpen(open) {
   if (body) body.style.display = open ? 'block' : 'none';
   if (chevron) chevron.innerHTML = open ? '&#9662;' : '&#9656;';
   if (line) line.setAttribute('aria-expanded', open ? 'true' : 'false');
+  syncCountedLineClass('set-aside-section', open);
 }
 function toggleSetAside() {
   const body = document.getElementById('set-aside-body');
-  setSetAsideOpen(!!body && body.style.display === 'none');
+  const open = !!body && body.style.display === 'none';
+  setSetAsideOpen(open);
+  rememberSectionOpen('set-aside-section', open);     // #1040
+  syncCollapseAllButton();
 }
 
 // ─── SET ASIDE: WHICH TAB (#699) ────────────────────────────────────────────
@@ -10270,6 +10326,7 @@ function manualBucket(item) { return ReviewPlan.rowPlan(item).bucket; }
 const manualCollapsed = { area: true, zip: true, other: true };
 function toggleManualGroup(bucket) {
   manualCollapsed[bucket] = !manualCollapsed[bucket];
+  rememberBucketsOpen();   // #1040: a bucket he opened survives the refresh too
   document.querySelectorAll('.manual-body tr.manual-group-row[data-group="' + bucket + '"]').forEach(gh => {
     const ch = gh.querySelector('.g-chevron');
     if (ch) ch.textContent = manualCollapsed[bucket] ? '▸' : '▾';
@@ -11525,7 +11582,7 @@ function renderManualSectionRows() {
 
 const SESSION_KEY = 'ibno_session';
 
-function renderResults({ auto, manual, dayType }, recurringMap = {}, collapseOnLoad = false) {
+function renderResults({ auto, manual, dayType }, recurringMap = {}) {
   currentRecurringMap = recurringMap || {};
   autoItems = auto;           // hold the model; exports + overrides read/write here
   manualItems = manual;       // hold the unresolved manual rows for persistence
@@ -11631,11 +11688,19 @@ function renderResults({ auto, manual, dayType }, recurringMap = {}, collapseOnL
     document.getElementById('resolved-badge').textContent = '0';
   }
 
-  // #375: a FRESH report load opens with every section collapsed so it lands
-  // compact — Tyler expands only what he wants to code. Gated to the fresh-drop
-  // path (collapseOnLoad): a session restore on refresh or a rules re-run keeps
-  // whatever the user had expanded, so a mid-shift F5 does not throw away their
-  // place. Collapse state stays ephemeral (a header click still toggles it).
+  // #375: a report load opens with every section collapsed so it lands
+  // compact — Tyler expands only what he wants to code.
+  //
+  // #1040 REMOVED THE GATE. This used to run only on the fresh-drop path, on
+  // the reasoning that an F5 should keep whatever was expanded — but nothing
+  // remembered what WAS expanded, so "keep it" meant "render everything open",
+  // and a mid-shift refresh threw the page wide: *"Even when I refresh it opens
+  // up full."* So the default is now unconditional and the memory is real:
+  // applyViewCollapse() collapses every section and re-opens exactly the ones
+  // Tyler opened himself, off lib/view-collapse.js's persisted store, which
+  // resets itself on a new sort day. Every door into this function — fresh
+  // drop, re-drop, F5 restore, Re-run rules — comes through here, so there is
+  // one answer rather than three.
   //
   // EVERY section, with no exception (Tyler, 2026-08-06). Needs Manual Review
   // used to land expanded as "the section he works", and the express sections
@@ -11644,7 +11709,7 @@ function renderResults({ auto, manual, dayType }, recurringMap = {}, collapseOnL
   // report now opens as a list of headers with counts. Each header carries its
   // own title and badge while collapsed, so nothing is hidden by this: the page
   // states what it found and he opens the one he wants.
-  if (collapseOnLoad) collapseAllSections();
+  applyViewCollapse();
 
   persistSession();
 
@@ -16487,6 +16552,7 @@ function restoreEarlyLane(knownSortDay) {
   postSortStatus(postSortItems.length + ' row' + (postSortItems.length === 1 ? '' : 's') +
     ' restored from this device — no file to re-drop.', false);
   renderEarlyLane();
+  applyPostSortViewCollapse();   // #1040: an F5 onto a restored Post Sort lane is a load too
   return true;
 }
 
@@ -17020,6 +17086,7 @@ function ingestPostSortRecords(records, fileName) {
   postSortStatus(postSortItems.length + ' row' + (postSortItems.length === 1 ? '' : 's') +
     ' loaded from ' + fileName + '.', false);
   renderEarlyLane();
+  applyPostSortViewCollapse();   // #1040: a Post Sort load is a load (ADR 0021)
   autoCopyFlaggedLookupBatch();
 }
 
@@ -19056,7 +19123,7 @@ function revealWorkSection() {
 
 // The toolbar button is an affordance for what the page will do next, so it has
 // to agree with the sections after revealWorkSection() has opened one —
-// collapseAllSections() left it saying "Expand all".
+// applyViewCollapse() left it saying "Expand all".
 function syncCollapseAllButton() {
   const btn = document.getElementById('collapse-all-btn');
   if (!btn) return;
@@ -21892,7 +21959,7 @@ function applySnapshot(rows, opts) {
   lastRows = snap.rows;
   lastRecurring = snap.recurring;
   refreshRawViewerIfOpen(); // #388: keep the Browse Report viewer on the new load
-  renderResults(snap, snap.recurring, !!opts.collapse);
+  renderResults(snap, snap.recurring);
   return snap;
 }
 
@@ -22799,7 +22866,11 @@ function handleFile(file) {
       clearPostSortLane(); // the main report wins the slot
       // Code + detect recurring on the parsed rows (lib/ibno-session.js); the
       // page keeps the side effects (persist history, schedule sync, render).
-      const snap = applySnapshot(rows, { collapse: true }); // fresh file load -> start collapsed (#375)
+      // #1040: no `collapse` option any more — renderResults collapses on
+      // EVERY load and re-opens what Tyler opened himself. The flag existed to
+      // tell the fresh-drop path apart from the restore path, and that
+      // distinction is exactly the bug.
+      const snap = applySnapshot(rows);
       document.getElementById('drop-zone').style.display  = 'none';
       document.getElementById('reset-btn').style.display  = 'inline-flex';
       document.getElementById('rerun-btn').style.display  = 'inline-flex';
@@ -23159,24 +23230,161 @@ function initCollapsibleSections() {
     if (header) header.addEventListener('click', e => {
       if (e.target.closest('button, a, select, input')) return; // action controls, not a collapse
       sec.classList.toggle('collapsed');
+      // #1040: an explicit gesture, which is the only kind this store records.
+      rememberSectionOpen(sec.id, !sec.classList.contains('collapsed'));
+      syncCollapseAllButton();
     });
   });
 }
 
-// Collapse every visible result section and sync the toolbar button to its
-// "expand" affordance. Used as the default state after a load/restore (#375).
-function collapseAllSections() {
-  Array.from(document.querySelectorAll('.section'))
-    .filter(s => s.style.display !== 'none')
-    .forEach(s => s.classList.add('collapsed'));
-  const btn = document.getElementById('collapse-all-btn');
-  if (btn) btn.textContent = '✢ Expand all';
+// ─── WHAT TYLER HAD OPEN, ACROSS A REFRESH (#1040) ───────────────────────
+//
+// The rules the store follows — open things only, reset on a new SORT day,
+// keep on a same-day re-drop — live in lib/view-collapse.js with their own
+// Node test. Everything below is DOM wiring: read it on a load, write it on a
+// click.
+//
+// THE DAY IS `currentSortDay`, the loaded report's own day, never the device
+// clock. The sort starts around 1:30 AM, so a device date rolls in the middle
+// of one shift and would re-collapse the section Tyler is working out of.
+let viewCollapse = ViewCollapse.empty('');
+
+// readViewCollapse() -> the persisted state re-stamped for the report now on
+// screen, which is where "a new sort day starts collapsed" actually happens.
+// Called by applyViewCollapse on every load and nowhere else: within a session
+// the in-memory copy is the truth, so a click can never be undone by a re-read.
+function readViewCollapse() {
+  viewCollapse = ViewCollapse.restore(toolStorage.get(ViewCollapse.STORAGE_KEY, null), currentSortDay);
+  return viewCollapse;
+}
+
+// A dropped write is deliberately silent. This is which boxes are open on a
+// screen; a quota-full localStorage costs Tyler one click after a refresh, and
+// a warning about it would be noise on a page that has real ones to give.
+function saveViewCollapse() {
+  try { toolStorage.set(ViewCollapse.STORAGE_KEY, ViewCollapse.serialize(viewCollapse)); } catch (e) { /* storage full */ }
+}
+
+function rememberSectionOpen(id, open) {
+  viewCollapse = ViewCollapse.setSectionOpen(viewCollapse, id, open);
+  saveViewCollapse();
+}
+
+function rememberBucketsOpen() {
+  Object.keys(manualCollapsed).forEach(k => {
+    viewCollapse = ViewCollapse.setBucketOpen(viewCollapse, k, !manualCollapsed[k]);
+  });
+  saveViewCollapse();
+}
+
+// Every section on the page, including the two hidden ones, so "Collapse all"
+// can clear a section that this report does not show.
+function allSectionIds() {
+  return Array.from(document.querySelectorAll('.section')).map(sec => sec.id).filter(Boolean);
+}
+
+function visibleSections() {
+  return Array.from(document.querySelectorAll('.section')).filter(s => s.style.display !== 'none');
+}
+
+// applyViewCollapse() -> paint the page from the persisted state. THE one funnel
+// every load runs through (renderResults calls it; nothing else should).
+//
+// Collapsed is the default and open is the exception, so this both adds and
+// removes the class rather than only adding it: a section Tyler opened on this
+// sort day has to come BACK open on the refresh, which is the whole ticket.
+//
+// The two counted lines (#696 Other work areas, #698 Set aside) drive their own
+// bodies through their own setters rather than through `.collapsed`, so they
+// are restored through those setters. They are restored whether or not their
+// section is on screen — a hidden section's body display is not visible either
+// way, and gating it would mean a section that appears later in the shift comes
+// back shut after Tyler opened it.
+//
+// `opts.buckets === false` applies the SECTIONS only. The Post Sort load path
+// needs that and renderResults must not have it, and the difference is ORDER:
+// renderResults calls this BEFORE applyRestingWorkMode, so Work mode's
+// expandAllManualGroups() has the last word on the buckets there. The Post Sort
+// funnels call it AFTER renderEarlyLane() — they have to, because that is what
+// reveals the sections there is any point collapsing — and renderEarlyLane runs
+// applyRestingWorkMode inside itself. Writing the buckets there would therefore
+// shut what Work mode had just opened, and applyManualSearch()'s
+// `active || !manualCollapsed[bucket]` would then hide real rows in the working
+// list. Caught by tests/ibno-post-sort-lane-dom.test.js, PR #673 finding 2.
+function applyViewCollapse(opts) {
+  const o = opts || {};
+  readViewCollapse();
+  visibleSections().forEach(sec => {
+    sec.classList.toggle('collapsed', !ViewCollapse.isSectionOpen(viewCollapse, sec.id));
+  });
+  setOtherAreasOpen(ViewCollapse.isSectionOpen(viewCollapse, 'other-areas-section'));
+  setSetAsideOpen(ViewCollapse.isSectionOpen(viewCollapse, 'set-aside-section'));
+  // Buckets too. resetViewControls() has just closed all three; this re-opens
+  // the ones he had open. Work mode, which is the resting state (#697), opens
+  // every bucket again a few lines later in renderResults — that is Work mode's
+  // own behaviour and is left alone, so the persisted bucket state is what
+  // Tyler gets back with Work mode OFF.
+  if (o.buckets !== false) {
+    Object.keys(manualCollapsed).forEach(k => {
+      manualCollapsed[k] = !ViewCollapse.isBucketOpen(viewCollapse, k);
+    });
+  }
+  syncCollapseAllButton();
+}
+
+// applyPostSortViewCollapse() -> the collapse pass for the two POST SORT load
+// funnels (loadPostSortAsMain / restoreEarlyLane). ADR 0021 says Post Sort
+// holds the main slot, so this is Tyler's daily driver, not a side path.
+//
+// THE COLLAPSE PASS AND WORK MODE'S REVEAL ARE ORDERED, AND ONLY ONE OF THEM
+// CAN GO LAST. renderResults settles it by collapsing FIRST and calling
+// applyRestingWorkMode() last. These two funnels cannot copy that order,
+// because renderEarlyLane() is what REVEALS the express sections (and #summary)
+// this pass has to see — run the collapse before it and a section that appears
+// on this drop lands wide open, never having been in visibleSections().
+//
+// But renderEarlyLane() also runs applyRestingWorkMode() inside itself, and
+// with Work mode at its resting default (#697) that reaches
+// enterWorkLoop() -> revealWorkSection(), which opens the ONE section holding
+// the cursor — normally #manual-section. Collapsing after it shuts that section
+// again, and `.section.collapsed > table { display: none }` then hides the
+// lane's table: Work mode on, bar painted, ZERO rows on screen. That is #697's
+// exact failure, reintroduced on the main-slot path (PR #1049 review finding 1;
+// measured on reports/source-files/2026-08-12-inbound-scan-no-van-scan-post-sort.xlsx
+// as 9 rows in #manual-tbody inside a display:none table).
+//
+// So the reveal is RE-RUN rather than the collapse moved. Both orderings are
+// preserved: every section the drop revealed gets collapsed, and then Work mode
+// gets the last word on the one section it needs, exactly as in renderResults.
+//
+// Gated on workModeOn because revealWorkSection() is Work mode's affordance and
+// nothing else's — with Work mode off the page must land fully collapsed, which
+// is the whole ticket.
+//
+// `{ buckets: false }` for the reason the block above states: renderEarlyLane()
+// has already expanded the buckets for Work mode, and writing the persisted
+// bucket state here would shut what it just opened (see the #1040 limitation
+// note in the PR body).
+function applyPostSortViewCollapse() {
+  applyViewCollapse({ buckets: false });
+  if (workModeOn) revealWorkSection();
+  syncCollapseAllButton();
 }
 
 function toggleAllSections() {
-  const secs = Array.from(document.querySelectorAll('.section')).filter(s => s.style.display !== 'none');
+  const secs = visibleSections();
   const anyOpen = secs.some(s => !s.classList.contains('collapsed'));
   secs.forEach(s => s.classList.toggle('collapsed', anyOpen));
+  // The two counted lines fold with everything else (#1040): they are sections
+  // on this page as far as one button called "Collapse all" is concerned, and
+  // leaving them behind made the click a half-measure.
+  setOtherAreasOpen(!anyOpen);
+  setSetAsideOpen(!anyOpen);
+  // `anyOpen` is what the click just UNDID, so the new state is its negation.
+  // Expand all is handed every id on the page, Collapse all clears the map
+  // outright (see lib/view-collapse.js setAllSections).
+  viewCollapse = ViewCollapse.setAllSections(viewCollapse, allSectionIds(), !anyOpen);
+  saveViewCollapse();
   document.getElementById('collapse-all-btn').textContent = anyOpen ? '✢ Expand all' : '✄ Collapse all';
 }
 

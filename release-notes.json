@@ -381,6 +381,29 @@
       "commit": null,
       "shippedAt": null,
       "order": 15
+    },
+    {
+      "id": "pr-1049",
+      "pr": 1049,
+      "issue": 1040,
+      "tool": "ibno-coder",
+      "title": "The page opens folded shut, and remembers what you opened",
+      "summary": "Every section now starts collapsed on every load, so a report lands as a short list of headers with counts instead of a wall of rows, and what you open is remembered across a refresh. The Collapse all and Expand all buttons moved up into the purple bar at the top, so they stay on screen no matter how far you scroll.",
+      "watchFor": [
+        "A refresh used to open everything back up. It no longer does — only the sections you opened yourself come back.",
+        "A re-drop of today’s report keeps what you had open. A report from a new sort day starts with everything shut.",
+        "Every collapsed header still shows its count, so a folded page still tells you where the work is.",
+        "Work mode, unchanged: a load still opens the section holding the cursor, and on a Post Sort load all three buckets — so there the sections are remembered, the buckets are not."
+      ],
+      "howToSee": [
+        "Drop a report — every section lands folded shut",
+        "Click a section header to open it",
+        "Press F5 — that section is open again and the rest are still shut",
+        "Use the Collapse all and Expand all buttons in the purple bar at the top of the page"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
     }
   ],
   "queueIssue": 1025
