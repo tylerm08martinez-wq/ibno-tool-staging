@@ -505,6 +505,29 @@
       "commit": "a4ebf8b",
       "shippedAt": null,
       "order": 21
+    },
+    {
+      "id": "pr-1061",
+      "pr": 1061,
+      "issue": 1041,
+      "tool": "ibno-coder",
+      "title": "Back to the top, and jump straight to a section",
+      "summary": "A Top button now floats in the bottom left corner once you scroll, and the purple bar carries a chip for each section so you can jump straight to one.",
+      "watchFor": [
+        "The button sits bottom left on purpose. Bottom right is where the day and night toggle lives, and where a row keeps its own buttons on the last line you can see.",
+        "The Home key takes you to the top and the End key to the bottom, but neither fires while you are typing in a code box or in the Goes To box.",
+        "On a phone the chips drop their counts and shrink, so the purple bar does not eat the screen.",
+        "A chip opens the section it jumps to, so a jump never lands on a folded section."
+      ],
+      "howToSee": [
+        "Load today Inbound and Van Scans report",
+        "Scroll down into Ready to Enter until the Top button appears in the bottom left corner",
+        "Click a chip in the purple bar and watch that section land just under the bar",
+        "Press the Home key with nothing selected and the page goes back to the top"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
     }
   ],
   "queueIssue": 1025

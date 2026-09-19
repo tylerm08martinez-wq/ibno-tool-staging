@@ -97,6 +97,17 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      /* THE HEADER WRAPS, and the jump strip takes the row it makes (#1041
+         verify, finding B). Left as a single nowrap row, the strip was the only
+         flex child that could shrink to nothing — `min-width: 0` on a box whose
+         siblings all have `min-width: auto` — so at 390 it measured 0px wide
+         with its five chips laid out off the right-hand edge of the viewport,
+         and at 1280 it clipped its own last chip. Every other child holds its
+         natural width; the strip gets a full row of its own below them (see
+         .jump-strip's `flex: 1 1 100%`), which is also why the header no longer
+         truncates the file name to make room. */
+      flex-wrap: wrap;
+      row-gap: 6px;
     }
     header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.01em; }
     /* Copy-as lives in the STICKY APP HEADER, not in a section header. Section
@@ -132,13 +143,152 @@
       font-family: inherit; font-size: 12px; font-weight: 600;
       padding: 4px 11px; border-radius: 5px; cursor: pointer; white-space: nowrap;
     }
-    .copyas button:hover { color: #fff; }
-    .copyas button.on { background: #fff; color: #4D148C; }
+    /* The jump strip's chips (#1041) share this switch's hover and selected
+       treatment: both are controls sitting on the purple header bar, and both
+       read "on" as a filled white pill. Grouped onto the existing rules rather
+       than repeated in the jump-strip block below, so the two cannot drift
+       apart and the bar gains no new hardcoded colour (the #307/#313 budget in
+       tests/theme-contrast-dom.test.js).
+       The current chip's selector is compounded (.jump-strip .jump-chip[...])
+       so it outranks .jump-chip:hover, which sits further down the file and
+       would otherwise win on source order and strip the white fill off the
+       marker while the pointer is over it. */
+    .copyas button:hover,
+    .jump-chip:hover { color: #fff; }
+    .copyas button.on,
+    .jump-strip .jump-chip[aria-current="true"] { background: #fff; color: #4D148C; }
     .copyas .kbd {
       font-size: 9.5px; opacity: 0.55; margin-left: 5px;
       border: 1px solid currentColor; border-radius: 3px; padding: 0 3px;
     }
-    #file-label { font-size: 12px; opacity: 0.75; max-width: 500px; text-align: right; }
+    /* The loaded report's name. It is the header's elastic child: it shrinks
+       and ellipsises rather than wrapping into a three-line column, which is
+       what it did at 390 (45px wide, 144px tall) while squeezing everything
+       beside it off the screen (#1041 verify, finding B). */
+    #file-label {
+      font-size: 12px; opacity: 0.75; max-width: 500px; text-align: right;
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* ─── GETTING AROUND A LONG PAGE (#1041) ────────────────────────────────
+       Ready to Enter can be hundreds of rows. Two controls: a jump strip in
+       this sticky header, and a floating Top button. Every number below was
+       measured in real Chrome by the prototype (PR #1056); the rules live in
+       lib/page-nav.js and the two that overturned the obvious design are
+       commented where they bite.
+
+       THE CHIPS NEVER WRAP, AND THE STRIP OWNS ITS OWN ROW. The prototype's
+       wrapping CHIPS cost +82px of header at 390 and put the whole sticky
+       stack at 495px — 58.7% of the viewport — which is #874 repeating. One
+       nowrap line of chips that scrolls inside its own box cannot grow the
+       header no matter how many sections exist. The scrollbar is hidden rather
+       than left visible: Tyler's Windows machine has classic ~17px scrollbars,
+       and a permanent one here would give back most of the height this rule
+       exists to save.
+
+       `flex: 1 1 100%` IS THE FIX FOR THE VERIFY'S FINDING B. The first cut
+       made the strip one more item on the header's single nowrap row, at
+       `flex: 0 1 auto; min-width: 0` — the only child of that row allowed to
+       shrink below its content, because every sibling keeps the default
+       `min-width: auto`. Flexbox therefore took the whole overflow out of the
+       strip first: measured in real Chrome at 390x844 it was 0px wide, with
+       five chips laid out at x 440-751 on a 639px-wide page, every one of them
+       unreachable by `elementFromPoint` — the condensed form written for the
+       phone was never once seen on a phone. At 1280 the same squeeze clipped
+       the fifth chip (Set aside) out of a 361px box holding 453px of content.
+       A full-width basis makes the strip a row rather than a competitor: it
+       cannot be shrunk by the file name beside it, and the overflow-x above is
+       left to do the job it was always for — scrolling INSIDE the strip when
+       there are more chips than row. Measured with five chips and a report
+       loaded: header 91px at 1280x900 (76px before, which truncated nothing
+       only because the strip was absorbing the squeeze), 146px at 390x844 and
+       all five chips hittable, against the prototype's 495px / 58.7%. */
+    .jump-strip {
+      display: flex; align-items: center; gap: 6px;
+      flex: 1 1 100%; min-width: 0; order: 9;
+      flex-wrap: nowrap; overflow-x: auto;
+      scrollbar-width: none; -ms-overflow-style: none;
+    }
+    .jump-strip::-webkit-scrollbar { display: none; }
+    .jump-strip[hidden] { display: none; }
+    .jump-chip {
+      border: 1px solid rgba(255,255,255,0.28);
+      background: rgba(255,255,255,0.13);
+      color: rgba(255,255,255,0.88);
+      font-family: inherit; font-size: 12px; font-weight: 600; line-height: 1;
+      /* NEITHER GROWS NOR SHRINKS: a chip is its label, and a chip squeezed to
+         a sliver is a control nobody can hit. When the chips do not fit, the
+         strip scrolls — that is what the overflow-x above is for. */
+      flex: 0 0 auto;
+      padding: 6px 10px; border-radius: 7px; cursor: pointer; white-space: nowrap;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+    .jump-chip:hover { background: rgba(255,255,255,0.26); }
+    .jump-chip:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+    /* The "where am I" marker. Filled rather than outlined, so it reads at a
+       glance from arm's length on the cage PC. Its white fill and purple text
+       live on the .copyas button.on rule above, which already carries exactly
+       those two values. No border-color override is needed: the background
+       paints under the border (border-box is the default clip), so the base
+       chip's rgba(255,255,255,0.28) border composites over a white fill and
+       renders white. */
+    .jump-chip .n { opacity: 0.72; margin-left: 5px; font-weight: 800; }
+    .jump-chip[aria-current="true"] .n { opacity: 1; }
+
+    /* THE TOP BUTTON IS BOTTOM-LEFT, AND FIXED.
+       Bottom-right, measured: 1,383 px² over the last visible row's To Station
+       button — breaking the ticket's own "nothing covers a row's action cell"
+       rule — and 1,280 px² over lib/theme.js's floating toggle, which every
+       tool mounts in that corner. Bottom-left measured 0 and 0, because the
+       action cell is right-aligned on every row, so the left corner is the one
+       place a row has no controls. Moving the theme toggle instead would be a
+       shared change across eleven tools and was rejected.
+       FIXED, not sticky: at 390 this page is 639px wide, and a sticky control
+       scrolls off sideways with everything else.
+       z-index 60 is above the header (50) and the Work mode bar (40) and below
+       every overlay, dialog, note and docked panel (70/80/90/95) — a floating
+       convenience never covers something the supervisor is reading. */
+    #to-top {
+      position: fixed; left: 20px; right: auto; bottom: 20px; z-index: 60;
+      display: none; align-items: center; gap: 6px;
+      padding: 9px 14px; border-radius: 22px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface); color: var(--text);
+      font-family: inherit; font-size: 12px; font-weight: 700; line-height: 1;
+      cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.22);
+    }
+    #to-top.show { display: inline-flex; }
+    #to-top:hover { background: var(--hover-soft); }
+    #to-top:focus-visible { outline: 2px solid var(--brand-ink); outline-offset: 2px; }
+    #to-top .kbd {
+      font-weight: 600; opacity: 0.6; font-size: 10px;
+      border: 1px solid currentColor; border-radius: 3px; padding: 0 3px;
+    }
+    /* Under 640px — the same breakpoint the grouped toolbar already uses — the
+       strip condenses: no counts, tighter chips. The counts are the first thing
+       to go because the badge in each section header still states them. */
+    @media (max-width: 640px) {
+      .jump-strip { gap: 4px; }
+      .jump-chip { padding: 4px 8px; font-size: 11px; }
+      .jump-chip .n { display: none; }
+      #to-top { left: 12px; bottom: 12px; padding: 8px 12px; }
+      /* THE HEADER'S OWN TWO PHONE SAVINGS, both of them height rather than
+         taste. Measured at 390x844 with a report loaded and five sections: the
+         header is 146px with these, 180px without — and 174px is the ceiling
+         the strip's own row has to stay under to keep the sticky stack well
+         clear of the prototype's 495px / 58.7%.
+         The "COPY AS" caption goes because the two buttons under it read
+         "Tracking #" and "Full barcode" — the label names what they already
+         say. The h1 ellipsises rather than wrapping to three lines. */
+      .copyas-label { display: none; }
+      .header-title { min-width: 0; }
+      header h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    }
+    /* Screen-only chrome, the rule theme.css applies to its own floating
+       toggle: neither of these means anything on paper. */
+    @media print {
+      #to-top, .jump-strip { display: none !important; }
+    }
 
     #drop-zone {
       border: 2px dashed #4D148C;
@@ -2223,7 +2373,7 @@
 <body>
 
 <header>
-  <div style="display:flex;align-items:center;gap:14px">
+  <div class="header-title" style="display:flex;align-items:center;gap:14px">
     
     <h1>IBNO Coder &mdash; Station 849</h1>
   </div>
@@ -2238,6 +2388,12 @@
       <button type="button" data-mode="barcode" onclick="setCopyMode('barcode')" title="Copy buttons put the full barcode on the clipboard (shortcut: B)">Full barcode<span class="kbd">B</span></button>
     </div>
   </div>
+  <!-- Section jump strip (#1041). Beside Collapse all, because the two are the
+       same job — getting around a page that is hundreds of rows long — and
+       both have to be reachable from the bottom of it, which is what the
+       sticky header buys. Chips are built by syncJumpStrip(); hidden until a
+       report is loaded, exactly like the button below. -->
+  <div class="jump-strip" id="jump-strip" role="group" aria-label="Jump to a section" hidden></div>
   <!-- Collapse all / Expand all (#1040). In the sticky header, not in the
        button row below the drop zone, so it is reachable from anywhere on a
        long page. Hidden until a report is loaded, exactly as it was. -->
@@ -2245,6 +2401,11 @@
           onclick="toggleAllSections()" title="Fold every section shut, or open them all">&#10996; Collapse all</button>
   <span id="file-label">No file loaded</span>
 </header>
+
+<!-- Back to the top (#1041). BOTTOM-LEFT and position: fixed — see the CSS
+     above for the two measurements that put it there. It is outside <header>
+     because it is fixed to the viewport, not to the page. -->
+<button id="to-top" type="button" title="Back to the top (Home)">&#8593; Top <span class="kbd">Home</span></button>
 
 <!-- Work mode bar (#work-mode): shows the package being worked, keeps its
      street on the clipboard, and takes the area without leaving the keyboard.
@@ -3385,6 +3546,9 @@
 <script src="lib/area-conflicts.js"></script>
 <script src="lib/sort-day.js"></script>
 <script src="lib/view-collapse.js"></script>
+<!-- Getting around a long page (#1041): where a jump lands, which key
+     navigates, and which sections the strip may offer. -->
+<script src="lib/page-nav.js"></script>
 <!-- Park and the Parked tab (#698): the defer state's rules. A sort-day day
      store, loaded after sort-day.js whose day-store mechanics it delegates
      to, so park and the Goes To areas ride the same INBOUND_DATE clock. -->
@@ -19633,6 +19797,10 @@ function syncCollapseAllButton() {
     .filter(s => s.style.display !== 'none')
     .some(s => !s.classList.contains('collapsed'));
   btn.textContent = anyOpen ? '✄ Collapse all' : '✢ Expand all';
+  // The jump strip hangs off this same funnel (#1041): every path that shows or
+  // hides a section already ends here, so the chips cannot fall out of step
+  // with the sections without the Collapse all label falling out of step too.
+  syncJumpStrip();
 }
 
 function enterWorkLoop(copyStreet) {
@@ -23756,6 +23924,16 @@ function resetApp() {
   // lanes.) One pass restores them and rewrites each lane's "showing N of M"
   // note off the reset state.
   applyManualSearch();
+  // THE ONE SHOW/HIDE PATH THAT DOES NOT GO THROUGH syncCollapseAllButton()
+  // (PR #1061 review, finding 1). Everything above hides sections wholesale and
+  // then HAND-WRITES the Collapse all button's display and label a few hundred
+  // lines up, rather than routing through the funnel the jump strip hangs off —
+  // so without this call the purple bar kept the discarded report's chips, with
+  // its counts, over an empty drop zone: three dead controls (jumpToSection
+  // early-returns on a display:none section) that refreshJumpCounts() then went
+  // on reading off hidden sections every scroll frame. Called LAST, after every
+  // section is hidden, so the strip is rebuilt from the page's final state.
+  syncJumpStrip();
 }
 
 // ─── COLLAPSIBLE SECTIONS (#166) ──────────────────────────────────────────────
@@ -23946,6 +24124,327 @@ function toggleAllSections() {
   viewCollapse = ViewCollapse.setAllSections(viewCollapse, allSectionIds(), !anyOpen);
   saveViewCollapse();
   document.getElementById('collapse-all-btn').textContent = anyOpen ? '✢ Expand all' : '✄ Collapse all';
+  // Folding or unfolding every section moves every section on the page, so the
+  // chip marked "you are here" is now pointing at whichever section USED to be
+  // under the header (PR #1061 review, finding 4). Nothing else re-marks it
+  // until the next scroll event, and from mid-page a Collapse all is usually
+  // followed by reading, not scrolling. The chips themselves do not change, so
+  // this is the marker only, not a strip rebuild.
+  markCurrentSection();
+}
+
+// ─── GETTING AROUND A LONG PAGE (#1041) ──────────────────────────────────────
+//
+// Tyler, 2026-09-17: *"I need a way to quickly get back to the top of the page
+// ... if I open up Ready to Enter and sometimes I have a lot and I have to
+// scroll a lot."*
+//
+// Two controls, both shaped by the prototype's real-Chrome measurements (PR
+// #1056): a floating Top button in the BOTTOM-LEFT corner, and a jump strip in
+// the sticky header. The rules — where a jump lands, which key navigates, which
+// sections may appear — are in lib/page-nav.js with their own Node test; this
+// is the wiring.
+//
+// WHY THE STRIP IS REBUILT THROUGH syncCollapseAllButton(). Nearly every path
+// that shows or hides a section already ends there (renderResults, the Post
+// Sort funnels, a header click, revealWorkSection). Hanging the strip off that
+// one funnel means a section that appears mid-shift gets a chip without anyone
+// remembering to add a call, and — the failure that actually happens — a
+// section that DISAPPEARS loses its chip instead of leaving a dead control that
+// scrolls to a display:none box.
+//
+// THE ONE EXCEPTION IS resetApp(), which this comment originally miscounted as
+// a funnel path (PR #1061 review, finding 1): it hides every section and then
+// hand-writes the Collapse all button's display and label directly, never
+// entering syncCollapseAllButton() at all — so it calls syncJumpStrip() itself,
+// as its last act. Load New File and every Post Sort main-slot load run through
+// it, and they were exactly the case this comment claimed was covered.
+function pageHeaderEl() { return document.querySelector('header'); }
+
+// The measured height of the sticky header, or 0 where there is no layout
+// (jsdom, print). Everything below treats 0 as "do not touch anything", so a
+// layout-less environment leaves the page exactly as the CSS left it.
+function pageHeaderHeight() {
+  const el = pageHeaderEl();
+  const box = el && el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+  return box && box.height > 0 ? box.height : 0;
+}
+
+// syncHeaderOffset() -> keep `--header-h` equal to the header's real height.
+//
+// The section headers and the Work mode bar are `position: sticky; top:
+// var(--header-h, 56px)`, and 56px was a hardcoded guess that was close enough
+// while the header held one row of controls. The jump strip can change that
+// height (it is a flex child of the header), and a stale offset does not fail
+// loudly — the app header simply paints over the top few pixels of whichever
+// section header is pinned under it, because its z-index is higher. So the
+// number is measured rather than guessed from here on.
+function syncHeaderOffset() {
+  const h = pageHeaderHeight();
+  if (h > 0) document.documentElement.style.setProperty('--header-h', Math.round(h) + 'px');
+}
+
+// sectionHidden(sec) -> is this section off screen?
+//
+// THE COMPUTED DISPLAY, not the inline one, and that difference is the whole
+// cold-page behaviour. visibleSections() and syncCollapseAllButton() ask
+// `style.display !== 'none'`, which is right for them because they only ever
+// run after a render has set an inline display on every section. A strip built
+// on the same predicate offers four chips over an empty drop zone, because
+// before the first report the sections are hidden by the base
+// `.section { display: none }` RULE and carry no inline style at all. Once a
+// report is loaded the two predicates agree, so the strip and the Collapse all
+// button cannot disagree about a section on any page that has one.
+function sectionHidden(sec) {
+  if (!sec) return true;
+  if (sec.style.display === 'none') return true;
+  const view = sec.ownerDocument && sec.ownerDocument.defaultView;
+  if (!view || !view.getComputedStyle) return false;
+  return view.getComputedStyle(sec).display === 'none';
+}
+
+// sectionBadgeText(sec) -> the number a chip may print for this section, or ''.
+//
+// ONE BADGE OR NO NUMBER (#1041 verify, the Set aside note). The first cut took
+// the section's FIRST `.badge`, which is right for Ready to Enter, Needs Manual
+// Review and Repeat Packages — one header, one count — and wrong for Set aside,
+// whose header is a strip of TABS and whose first badge is #parked-badge. The
+// verify measured the chip reading "Set aside 0" beside a pane holding six
+// station packages: not a stale number, a number for a different question.
+// Summing the tabs was the other option and was not taken — the Station tab's
+// badge is "still needing" rather than its row count (spec #996 story 5), so a
+// sum would be a new wrong number rather than the section's total.
+//
+// SCOPED TO THE SECTION'S FIRST .section-header, deliberately: Ready to Enter
+// carries a second one (`.section-header.grouped-toolbar`) whose controls have
+// counts of their own, and a whole-section querySelectorAll would count those
+// as rival badges and blank a chip that has exactly one honest number.
+function sectionBadgeText(sec) {
+  const head = sec ? sec.querySelector('.section-header') : null;
+  if (!head) return '';
+  const badges = head.querySelectorAll('.badge');
+  return badges.length === 1 ? String(badges[0].textContent || '').trim() : '';
+}
+
+// The sections as lib/page-nav.js wants to see them.
+function jumpSectionModel() {
+  return Array.from(document.querySelectorAll('.section')).map(sec => {
+    const h2 = sec.querySelector('.section-header h2');
+    return {
+      id: sec.id,
+      title: h2 ? h2.textContent : '',
+      count: sectionBadgeText(sec),
+      hidden: sectionHidden(sec),
+    };
+  });
+}
+
+// syncJumpStrip() -> the chips match the page, and their counts match the
+// badges. Cheap enough to call on every render and every scroll frame: six
+// sections, and the DOM is only rewritten when the LIST changes (rebuilding it
+// every time would drop the focus ring mid-keyboard-navigation).
+function syncJumpStrip() {
+  const strip = document.getElementById('jump-strip');
+  if (!strip) return;
+  const entries = PageNav.stripEntries(jumpSectionModel());
+  // NO REPORT ON SCREEN -> NO STRIP, however many sections happen to be visible
+  // behind the drop zone (#1041 verify, finding A).
+  //
+  // The gate used to be the `entries.length < 2` rule below on its own, and the
+  // reasoning was that a reset leaves exactly one section on screen. It leaves
+  // TWO. #manual-section is permanently visible by decision (issue #669 review
+  // finding 1), and #set-aside-section survives a reset whenever the parked,
+  // 503, assigned, Station or other-desk stores still hold a row — which on a
+  // real morning they do: the verify measured two chips, "Manual 0" and
+  // "Set aside 0", sitting over the empty "Drop your CSV here" zone with 4,105
+  // px² of them on top of it. The DOM test passed because its fixture had Set
+  // aside hidden.
+  //
+  // So the strip is gated on the same fact the drop zone is: noReportLoaded()
+  // is the page's own predicate (no main report AND no Post Sort report — see
+  // its comment at manualLaneEmptyMessage), and a visible drop zone and a
+  // visible jump strip are contradictory statements about the same page. The
+  // `< 2` rule stays as the secondary case (a loaded report with a single
+  // section on screen has nowhere to jump), but the reset is now decided by
+  // "is there a report", not by counting what survived it.
+  //
+  // Deliberately not gated on the Collapse all button instead: that button is
+  // revealed AFTER applyViewCollapse() runs, so a strip keyed to it came up
+  // empty on the very drop that should have filled it.
+  strip.hidden = noReportLoaded() || entries.length < 2;
+  // A HIDDEN STRIP CARRIES NO CHIPS. `hidden` alone left the single surviving
+  // chip — Needs Manual Review, the one section that is on screen with no
+  // report loaded — sitting in the markup with a stale count on it, invisible
+  // but still there to be read by anything that walks the strip's children.
+  // Making empty the strip's actual state rather than a display property keeps
+  // "what the strip says" and "what the page shows" the same sentence, and
+  // leaves dataset.ids as '' so the next report rebuilds from scratch.
+  const shown = strip.hidden ? [] : entries;
+  const want = shown.map(e => e.id).join('|');
+  if (strip.dataset.ids !== want) {
+    strip.innerHTML = '';
+    shown.forEach(e => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'jump-chip';
+      chip.dataset.target = e.id;
+      chip.title = 'Jump to ' + e.label;
+      chip.appendChild(document.createTextNode(e.label));
+      const n = document.createElement('span');
+      n.className = 'n';
+      chip.appendChild(n);
+      strip.appendChild(chip);
+    });
+    strip.dataset.ids = want;
+  }
+  refreshJumpCounts();
+  markCurrentSection();
+  // RE-MEASURE THE HEADER HERE, not only on load and resize (PR #1061 review,
+  // finding 2). initPageNav() measured a COLD header: no strip, no Collapse
+  // all, no Clean export, and a #file-label that still read its placeholder —
+  // and nothing re-measured until the window was resized, which on the cage PC
+  // is never. The section headers and the Work mode bar are sticky at
+  // var(--header-h), so a value left over from the cold header paints the app
+  // header over the top of whichever section header is pinned under it. This
+  // function is the render funnel for everything that changes the header's
+  // height, so the measurement belongs at its tail, after strip.hidden is set:
+  // showing or hiding the strip is itself one of those changes.
+  syncHeaderOffset();
+}
+
+// refreshJumpCounts() -> the chips' numbers, straight off the section badges.
+//
+// SEPARATE FROM syncJumpStrip() BECAUSE IT ONLY READS textContent. The counts
+// change all sort long as rows are coded, and nothing re-renders the header
+// when a badge ticks down — so this runs on the scroll frame too, where
+// syncJumpStrip()'s structural check would force a style recalc per frame over
+// a 420-row table for an answer ("which sections exist") that changes maybe
+// twice a shift. A chip reading 37 beside a badge reading 30 is a small lie,
+// but it is a lie about how much work is left.
+function refreshJumpCounts() {
+  const strip = document.getElementById('jump-strip');
+  if (!strip || strip.hidden) return;
+  Array.from(strip.children).forEach(chip => {
+    const sec = document.getElementById(chip.dataset.target);
+    const n = chip.querySelector('.n');
+    // The SAME rule syncJumpStrip() built the chip with — one badge or no
+    // number. Two readings of "what number does this section have" is how the
+    // strip ends up disagreeing with itself one scroll frame after a render.
+    const v = sectionBadgeText(sec);
+    if (n && n.textContent !== v) n.textContent = v;
+  });
+}
+
+// markCurrentSection() -> "where am I". The line it measures against and the
+// air a jump leaves are ONE constant in lib/page-nav.js, for the reason stated
+// there: run as two numbers, the strip highlighted the section BEFORE the one
+// a jump had just landed on.
+function markCurrentSection() {
+  const strip = document.getElementById('jump-strip');
+  if (!strip || strip.hidden) return;
+  const chips = Array.from(strip.children);
+  if (!chips.length) return;
+  const tops = chips.map(chip => {
+    const sec = document.getElementById(chip.dataset.target);
+    const box = sec && sec.getBoundingClientRect ? sec.getBoundingClientRect() : null;
+    return { id: chip.dataset.target, top: box ? box.top : 0 };
+  });
+  // THE BOTTOM IS ITS OWN ANSWER (#1041 verify, the last-chip note). A jump to
+  // the final section is clamped at the document end, so its top can stop short
+  // of the marker line and leave the chip above it lit — the verify measured a
+  // Set aside jump highlighting Repeat. lib/page-nav.js carries the rule and
+  // the "a page shorter than the viewport is not 'at the bottom'" guard.
+  const docEl = document.documentElement;
+  const atBottom = PageNav.atPageBottom(
+    window.scrollY, window.innerHeight, docEl ? docEl.scrollHeight : 0);
+  const cur = PageNav.currentSectionId(tops, pageHeaderHeight(), atBottom);
+  chips.forEach(chip => {
+    if (chip.dataset.target === cur) chip.setAttribute('aria-current', 'true');
+    else chip.removeAttribute('aria-current');
+  });
+}
+
+// jumpToSection(id) -> scroll to a section and open it.
+//
+// A jump ALWAYS reveals the section, the same rule the stat cards follow (#166)
+// — landing on a collapsed fold would be a control that appears to do nothing.
+// The two counted lines drive their own bodies through their own setters, so
+// they are opened through those (#696, #698), and the gesture is recorded in
+// the #1040 store because clicking a chip is exactly the explicit gesture that
+// store exists to remember.
+function jumpToSection(id) {
+  const sec = document.getElementById(id);
+  if (!sec || sec.style.display === 'none') return;
+  sec.classList.remove('collapsed');
+  if (id === 'other-areas-section') setOtherAreasOpen(true);
+  if (id === 'set-aside-section') setSetAsideOpen(true);
+  rememberSectionOpen(id, true);
+  syncCollapseAllButton();
+  const box = sec.getBoundingClientRect ? sec.getBoundingClientRect() : { top: 0 };
+  window.scrollTo({
+    top: PageNav.jumpTargetY(box.top, window.scrollY || window.pageYOffset || 0, pageHeaderHeight()),
+    behavior: 'smooth',
+  });
+}
+
+function syncTopButton() {
+  const btn = document.getElementById('to-top');
+  if (!btn) return;
+  btn.classList.toggle('show', PageNav.showsTopButton(window.scrollY || window.pageYOffset || 0));
+}
+
+function scrollPageTo(where) {
+  const doc = document.documentElement;
+  const bottom = Math.max(0, (doc ? doc.scrollHeight : 0) - (window.innerHeight || 0));
+  window.scrollTo({ top: where === 'bottom' ? bottom : 0, behavior: 'smooth' });
+}
+
+// The scroll handler is split on purpose. The button's state is a number
+// comparison and runs synchronously; the marker READS LAYOUT for every section,
+// so it is coalesced to one frame — on a 420-row Ready to Enter a forced reflow
+// per scroll event is the one way this feature could make the page feel worse
+// than it did without it. No requestAnimationFrame (jsdom, some print paths)
+// falls back to running it inline, so behaviour never depends on the frame
+// clock existing.
+let pageNavFrame = 0;
+function onPageNavScroll() {
+  syncTopButton();
+  const raf = window.requestAnimationFrame ? window.requestAnimationFrame.bind(window) : null;
+  if (!raf) { refreshJumpCounts(); markCurrentSection(); return; }
+  if (pageNavFrame) return;
+  pageNavFrame = raf(() => { pageNavFrame = 0; refreshJumpCounts(); markCurrentSection(); });
+}
+
+function initPageNav() {
+  syncHeaderOffset();
+  const strip = document.getElementById('jump-strip');
+  if (strip) strip.addEventListener('click', e => {
+    const chip = e.target.closest ? e.target.closest('.jump-chip') : null;
+    if (!chip) return;
+    jumpToSection(chip.dataset.target);
+  });
+  const btn = document.getElementById('to-top');
+  if (btn) btn.addEventListener('click', () => scrollPageTo('top'));
+  window.addEventListener('scroll', onPageNavScroll, { passive: true });
+  window.addEventListener('resize', () => { syncHeaderOffset(); markCurrentSection(); });
+  // HOME AND END BELONG TO WHATEVER IS BEING TYPED IN. PageNav.navActionFor
+  // answers '' for a focused input, textarea, select or contenteditable — the
+  // per-row code inputs and Work mode's Goes To box — and for any modified
+  // press, so Ctrl+Home stays the browser's. '' means this handler does not
+  // preventDefault and every other keydown listener on the document sees the
+  // key exactly as it did before.
+  //
+  // Deliberately NOT gated on a modal being open: an overlay covers the page,
+  // so scrolling behind it changes nothing on screen, and the mouse wheel
+  // already behaves that way. One fewer condition to get wrong.
+  document.addEventListener('keydown', e => {
+    const action = PageNav.navActionFor(e);
+    if (!action) return;
+    e.preventDefault();
+    scrollPageTo(action);
+  });
+  syncTopButton();
+  syncJumpStrip();
 }
 
 // ─── STAT CARD NAVIGATION ─────────────────────────────────────────────────────
@@ -24000,6 +24499,10 @@ function onDrop(e) {
 
 // Wire collapsible result sections (#166).
 initCollapsibleSections();
+// The Top button, the jump strip and the Home / End keys (#1041). After
+// initCollapsibleSections(), which is what inserts the chevron into each
+// section's h2 — the strip's labels are read off those h2s.
+initPageNav();
 initSortControls();
 initMergedShortcuts();   // the All chip's `A` (#696). C / B / W are untouched.
 // Tyler's column arrangement (#701). Runs before any restore renders rows, so
