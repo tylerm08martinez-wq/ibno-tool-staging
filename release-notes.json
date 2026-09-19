@@ -525,9 +525,10 @@
         "Click a chip in the purple bar and watch that section land just under the bar",
         "Press the Home key with nothing selected and the page goes back to the top"
       ],
-      "mergedAt": null,
-      "commit": null,
-      "shippedAt": null
+      "mergedAt": "2026-09-19",
+      "commit": "78f0177",
+      "shippedAt": null,
+      "order": 22
     }
   ],
   "queueIssue": 1025
