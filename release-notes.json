@@ -550,9 +550,10 @@
         "Park a row and click Load New File again: the parked tab reads zero, and the park itself is kept",
         "Load a report and the parked package is counted again and ready to unpark"
       ],
-      "mergedAt": null,
-      "commit": null,
-      "shippedAt": null
+      "mergedAt": "2026-09-19",
+      "commit": "7c17478",
+      "shippedAt": null,
+      "order": 23
     }
   ],
   "queueIssue": 1025
