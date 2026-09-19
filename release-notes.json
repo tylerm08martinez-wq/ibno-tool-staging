@@ -501,9 +501,10 @@
         "Pick Mark as done and watch the row move to the Work area assigned tab",
         "Scroll to the last row and open the arrow again: the menu opens upward"
       ],
-      "mergedAt": null,
-      "commit": null,
-      "shippedAt": null
+      "mergedAt": "2026-09-19",
+      "commit": "a4ebf8b",
+      "shippedAt": null,
+      "order": 21
     }
   ],
   "queueIssue": 1025
