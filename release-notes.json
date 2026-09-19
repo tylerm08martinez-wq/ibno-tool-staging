@@ -481,6 +481,29 @@
       "commit": "a801ede",
       "shippedAt": null,
       "order": 20
+    },
+    {
+      "id": "pr-1059",
+      "pr": 1059,
+      "issue": 1037,
+      "tool": "ibno-coder",
+      "title": "To Station is now a button with an arrow for more moves",
+      "summary": "To Station still works with one click. The small arrow beside it opens a list with To Station, Mark as done, Park, 503 and Not ours, so a row can be moved without hunting for the right button.",
+      "watchFor": [
+        "Each item does exactly what the button of that name does, including the 503 one, so nothing new is written and nothing behaves differently.",
+        "Park and 503 keep their own buttons in the row as well. Use whichever you already reach for.",
+        "On the last row of a long list the menu opens upward so the bottom item is never off the screen.",
+        "While the menu is open the arrow keys move inside it and do not step the work cursor. Press Escape to close it and the arrow goes back to the list."
+      ],
+      "howToSee": [
+        "Load today's report and find a row in Needs Manual Review",
+        "Click the small arrow to the right of To Station",
+        "Pick Mark as done and watch the row move to the Work area assigned tab",
+        "Scroll to the last row and open the arrow again: the menu opens upward"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
     }
   ],
   "queueIssue": 1025

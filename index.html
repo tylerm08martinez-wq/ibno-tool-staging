@@ -1932,6 +1932,98 @@
       color: var(--text);
       letter-spacing: .02em;
     }
+    /* ─── #1037: To Station is a SPLIT BUTTON ────────────────────────────────
+       Tyler's pick off the PR #1056 prototype: variant A (the caret beside To
+       Station, which keeps To Station's one-click muscle memory) with variant
+       C's upward flip ALWAYS on.
+
+       The face and the caret are built out of .btn-park-mini's tokens — the
+       ones To Station already wears — so the cell keeps one visual language
+       and dark mode arrives through theme.css with no rule of its own, which
+       is the standing directive. Only the two radii and the shared edge are
+       new. */
+    .move-split { display: inline-flex; vertical-align: middle; }
+    /* The face KEEPS .btn-to-station, so the three DOM tests that click
+       '.btn-to-station' reach exactly the same button they always did; the
+       split is a wrapper around it, never a replacement for it. */
+    .move-split .btn-to-station { border-radius: 4px 0 0 4px; }
+    .move-caret {
+      padding: 3px 6px;
+      background: var(--surface-2);
+      color: var(--text-muted);
+      border: 1px solid var(--border-soft);
+      border-left: none;
+      border-radius: 0 4px 4px 0;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .move-caret:hover { background: var(--hover-soft); color: var(--text); }
+    /* OPEN reads as the brand ink, the token this page already flips per theme
+       (#4D148C light, #c4b5fd dark). The ink INVERTS between themes, so the
+       text on it has to as well: white on the light ink is 11.7:1, and the
+       page's own dark surface on the dark ink is 8.86:1. White on #c4b5fd
+       would have been 1.9:1 — the same mistake the menu's two faint rows made,
+       one element over.
+
+       The ink on it is var(--surface), NOT a hardcoded pair. --surface is
+       #ffffff in light and #1e1f29 in dark, which is the exact inversion this
+       needs, and it is what #work-toggle.on already does one screen up — the
+       same brand-ink face, the same ink token. Two hardcoded hex values plus a
+       dark-only override bought nothing but a second place to forget. */
+    .move-caret[aria-expanded="true"] { background: var(--brand-ink); color: var(--surface); border-color: var(--brand-ink); }
+
+    /* THE MENU IS PARENTED TO <body> AND IS position: fixed. Never inside the
+       cell: the prototype measured the same menu absolutely positioned inside
+       a row under a wrapper with overflow:hidden losing 38,267px² — 80.3% of
+       itself — with its last item unclickable. `.section` does not set
+       `overflow` today and the comment above says it must not, but that is
+       exactly the rule someone adds later to tidy a rounded corner.
+
+       z-index 70: above the sticky purple app header (50) and the sticky
+       section header (5), which the prototype proved with elementFromPoint
+       rather than by asserting a bigger number.
+
+       THE SURFACE IS ONLY 1.12:1 AGAINST THE PAGE, so the border and the
+       shadow are the whole separation. Neither may be dropped. */
+    .move-menu {
+      position: fixed; z-index: 70; min-width: 210px; padding: 5px;
+      background: var(--surface); color: var(--text);
+      border: 1px solid var(--border-strong); border-radius: 8px;
+      box-shadow: 0 6px 22px rgba(0,0,0,0.28);
+      font-size: 13px; overflow-y: auto;
+    }
+    .move-menu button {
+      display: flex; align-items: center; justify-content: space-between; gap: 14px;
+      width: 100%; text-align: left; background: none; border: none; color: var(--text);
+      /* The family is SPELLED OUT, not `inherit`. `font: 600 13px/1.2 inherit`
+         is an invalid shorthand — the family slot takes no CSS-wide keyword —
+         and a browser drops the WHOLE declaration, taking the size and weight
+         with it. Same list the page body uses. */
+      font: 600 13px/1.2 'Segoe UI', Arial, sans-serif;
+      padding: 8px 10px; border-radius: 5px; cursor: pointer;
+    }
+    .move-menu button:hover:not([disabled]), .move-menu button:focus-visible {
+      background: var(--hover-row); outline: none;
+    }
+    /* LIGHT MODE IS THE FAILING THEME, and these two lines are the fix.
+       Measured on the prototype page: --text-fainter on --surface is 1.92:1 in
+       LIGHT (the disabled item) and --text-faint is 2.85:1 (the shortcut chip)
+       — unreadable text and a chip under the 3:1 floor. Dark was fine, which
+       is the opposite of the expected worry. --text-muted is 5.74:1 in light
+       (#666666 on #ffffff) and 8.43:1 in dark (#b9b9c6 on #1e1f29), so both
+       rows clear 4.5:1 in BOTH themes. Do not move either back. */
+    .move-menu button[disabled] { color: var(--text-muted); cursor: default; }
+    .move-menu .move-key {
+      font: 700 10px/1 'Consolas','Courier New',monospace; color: var(--text-muted);
+      border: 1px solid var(--border); border-radius: 3px; padding: 2px 4px;
+    }
+    .move-menu .move-why {
+      display: block; font-size: 10.5px; font-weight: 400; color: var(--text-muted); margin-top: 2px;
+    }
+    .move-menu hr { border: none; border-top: 1px solid var(--border-soft); margin: 4px 2px; }
     .section.set-aside .lane-scope {
       font-size: 11px; font-weight: 600; letter-spacing: .02em;
       color: var(--text-faint); text-transform: uppercase;
@@ -3361,6 +3453,7 @@
 <script src="lib/desk-health.js"></script>
 <script src="lib/desk-activity.js"></script>
 <script src="lib/desk-roles.js"></script>
+<script src="lib/row-move-menu.js"></script>
 <script>
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const toolStorage = ToolHelpers.createStorage();
@@ -9103,16 +9196,29 @@ function build503Button(item) {
   // confirmed belt the keystroke would have protected. That is criterion 2
   // failing in the dangerous direction, and it costs one line to make
   // impossible instead of leaving it for #732 to discover.
-  const commitFn = item && item.provenance === 'early' ? commitPostSortGoesTo : commitGoesTo;
-  btn.addEventListener('click', () => {
-    const label = String(item && item.label != null ? item.label : '').trim();
-    if (!label) return;
-    // RE-ASKED AT CLICK TIME, never read off the render-time `filed` above: the
-    // toggle note at the top of this function is what that rule is for.
-    if (is503Label(label)) { clickClear503(label, commitFn); return; }
-    clickFile503(label, commitFn);
-  });
+  btn.addEventListener('click', () => click503Toggle(item));
   return btn;
+}
+
+// click503Toggle(item) -> THE 503 GESTURE, and the single code path for it.
+//
+// Lifted out of build503Button's click listener unchanged by #1037, because the
+// row-move menu's 503 item has to be a second ENTRY POINT to this gesture and
+// not a second copy of it. A copy would have had to re-derive the routing below
+// and the re-ask below that, and #746 review finding 2 is the receipt for what
+// it costs when two controls two cells apart answer the same question
+// differently: setEarly REFUSES to overwrite a confirmed area and
+// ActualArea.set does not, so the wrong route writes 503 over a confirmed belt.
+//
+// ROUTED ON THE ROW'S OWN PROVENANCE, never a label lookup, and RE-ASKED AT
+// CLICK TIME rather than read off a render-time value — build503Button's own
+// comment carries the full reasoning for both, and it still governs.
+function click503Toggle(item) {
+  const label = String(item && item.label != null ? item.label : '').trim();
+  if (!label) return;
+  const commitFn = item && item.provenance === 'early' ? commitPostSortGoesTo : commitGoesTo;
+  if (is503Label(label)) { clickClear503(label, commitFn); return; }
+  clickFile503(label, commitFn);
 }
 
 // clickFile503(label, commitFn) -> the BUTTON's whole gesture (#1036): type the
@@ -9593,6 +9699,361 @@ function buildSendToStationButton(item) {
   btn.addEventListener('click', () => sendToStation(label));
   return btn;
 }
+
+// ─── #1037: THE ROW-MOVE MENU ───────────────────────────────────────────────
+//
+// Tyler, 2026-09-17: "I don't want the To Station button only. I want that to
+// be a button that lets me do lots of things like To Station, Mark as done, and
+// others that I want to build off of. Keep the button but put a little arrow on
+// the right that opens a dropdown so I can select." This is the "Move to…
+// control on every row" #997 listed, and it closes it.
+//
+// THE DESIGN IS A MEASUREMENT, NOT A PREFERENCE. PR #1056 prototyped three
+// variants in real Chrome; Tyler picked A (the caret beside To Station, which
+// is why To Station keeps its own click) with C's upward flip ALWAYS on. The
+// numbers that decided the build conditions are in lib/row-move-menu.js and the
+// .move-menu rule above: 75.3% of the menu off-screen on the last row without
+// the flip, 80.3% of it eaten by an `overflow: hidden` ancestor if it lives in
+// the cell, and 1.92:1 disabled text in LIGHT if it wears --text-fainter.
+//
+// IT ADDS NO WRITER, AND THAT IS THE WHOLE RULE. Every item below calls the
+// same function the standalone control calls — sendToStation, togglePark,
+// click503Toggle (which build503Button now shares), markNotOurs, and
+// markFiledBatch through markRowDone. Two of those reach records-tier stores
+// (filedStore, the 503 flag), so a second code path that "does the same thing"
+// is exactly what this must not be: the menu is a second ENTRY POINT to one
+// writer, never a second writer.
+//
+// IT RENDERS EXACTLY WHERE To Station RENDERS, on all three of its surfaces
+// (the Needs Manual Review action cell, the Post Sort early lane, the Parked
+// tab) and nowhere else. That inherits, for free, the PR #1009 finding-1 guard
+// that keeps the control off a row another surface already owns: there is one
+// predicate deciding whether this control exists, not two.
+
+// rowMoveItems(item) -> the menu's v1 content (#1037). Park and 503 stay as
+// standalone buttons in the cell as well, deliberately, so muscle memory holds
+// — the issue says so in as many words.
+//
+// THE TOGGLING LABELS ARE READ AT OPEN TIME, never at row-build time, for
+// build503Button's reason: a row's park and its 503 flag can both change under
+// a rendered cell, and a menu built once at render would offer "Park" on a row
+// that is already parked. The menu is built on every open, so there is nothing
+// to go stale.
+function rowMoveItems(item) {
+  const label = String((item && item.label) || '');
+  const parked = IbnoParked.isParked(parkedStore, label);
+  const filed503 = is503Label(label);
+  // "Not ours" is the Station pane's own move and means nothing off it, so it
+  // is OFFERED EVERYWHERE AND ENABLED ONLY WHERE IT APPLIES, with the reason on
+  // screen (#1037: "Disabled items show why"). isStationRow is the page's one
+  // answer to "is this a station package", the same predicate the pane itself
+  // reads — never a second copy of it here.
+  const stationEligible = isStationRow(item);
+  return [
+    {
+      id: 'station', label: 'To Station', key: 'S',
+      title: 'This package is addressed to the station itself and the address rule missed ' +
+        'it. Moves it to the Station tab at the page bottom, out of Needs Manual Review and ' +
+        'out of the progress denominator, and keeps it there across re-drops. Writes no record.',
+      run: () => sendToStation(label),
+    },
+    {
+      id: 'done', label: 'Mark as done', key: 'D',
+      title: 'File this row the way "Mark selected as done" files a batch (#993): it leaves ' +
+        'the working list for the ✅ Work area assigned tab. No barcode, no card, and nothing ' +
+        'is counted as scanned.',
+      run: () => markRowDone(label),
+    },
+    {
+      id: 'park', label: parked ? 'Unpark' : 'Park', key: 'P',
+      title: parked
+        ? 'Return this row to the working list'
+        : 'Set aside for a later FTrack look: moves to the Parked tab at the page bottom and ' +
+          'waits there until you unpark it, including on later sort days. Writes no record.',
+      run: () => togglePark(label),
+    },
+    {
+      id: '503', label: filed503 ? 'Clear 503' : '503', key: '3',
+      title: filed503
+        ? 'Empty this row’s Goes To, returning it to the working list'
+        : 'File this bad address AND hand it off, in one click: types 503 into this row’s ' +
+          'Goes To for you — same dock flex across the stop, same auto-log, no OPS2 code — ' +
+          'and then files the row, so it leaves this list for the 503s tab straight away.',
+      run: () => click503Toggle(item),
+    },
+    {
+      id: 'notours', label: 'Not ours', key: 'N',
+      title: 'This package carries the station address but is not ours — it was ' +
+        'vision-updated to our address because it needs more information. Sends it back to ' +
+        'Needs Manual Review and keeps it there on later drops. Writes no code.',
+      disabled: !stationEligible,
+      why: 'Only for a package the Station tab claims',
+      run: () => markNotOurs(label),
+    },
+  ];
+}
+
+// markRowDone(label) -> the "Mark as done" item, and the one item with no
+// standalone control beside it.
+//
+// THROUGH markFiledBatch, WHICH IS THE WRITER AND THE ONLY ONE. #993 gave the
+// confirm panel a second entry point ("Mark selected as done") for the normal
+// case where the packages are already assigned and no sheet is ever printed;
+// this is a third entry point to the SAME function, for one row, and it writes
+// nothing markFiledBatch does not. ADR 0022 invariant 2 still holds untouched:
+// filing a row never ticks scanned.
+//
+// THE ADVANCE COPY RUNS FIRST, for clickFile503's reason (#966): markFiledBatch
+// re-renders in line, and copyWorkAdvanceStreet reads the landing row off the
+// DOM as it stands. It self-guards on "the cursor did not move", so doing this
+// on a row Tyler is not parked on copies nothing.
+//
+// AND THE TOAST NAMES THE TAB IT LANDED IN, on applyBarcodeConfirm's terms: a
+// 503 row lands on the 503 pallet in the 🚫 503s tab and NOT in ✅ Work area
+// assigned (#944 decision 2), so a message naming only the assigned tab would
+// send him to a tab that does not have his package.
+function markRowDone(label) {
+  const l = String(label == null ? '' : label).trim();
+  if (!l) return;
+  const was503 = is503Label(l);
+  copyWorkAdvanceStreet([l]);
+  const n = markFiledBatch([l]);
+  if (!n) return;
+  flashGoesToNote('Marked ' + l + ' as done — ' + (was503
+    ? 'it is on the 503 pallet, in the 503s tab and not Work area assigned'
+    : 'it is in the Work area assigned tab, still codeable') +
+    ' at the page bottom. Nothing was counted as scanned.');
+}
+
+// The open menu, and the caret that owns it. ONE AT A TIME (#1037): a second
+// open menu is two rows arguing about which one a keystroke is for.
+let rowMoveMenuEl = null;
+let rowMoveMenuCaret = null;
+
+function closeRowMoveMenu(refocus) {
+  if (!rowMoveMenuEl) return;
+  const caret = rowMoveMenuCaret;
+  rowMoveMenuEl.remove();
+  rowMoveMenuEl = null;
+  rowMoveMenuCaret = null;
+  if (!caret) return;
+  caret.setAttribute('aria-expanded', 'false');
+  // isConnected, for the reason the row handler guards on it (#1039/#1046):
+  // the move that closed this menu may have re-rendered the row out from under
+  // the caret, and focusing a detached node silently moves focus to <body>.
+  if (refocus && caret.isConnected) caret.focus();
+}
+
+// dropOrphanedRowMoveMenu() -> true if there WAS a menu and its caret has been
+// torn out of the document underneath it.
+//
+// The writers this menu calls close it first and re-render second, so this is
+// never about them. It is about a re-render nothing on this row asked for — the
+// desk sync tick, a re-drop — which rebuilds the table and leaves a fixed menu
+// anchored to a caret that no longer exists, still showing whatever Park/503
+// said when it opened.
+function dropOrphanedRowMoveMenu() {
+  if (!rowMoveMenuEl) return false;
+  if (rowMoveMenuCaret && rowMoveMenuCaret.isConnected) return false;
+  closeRowMoveMenu(false);
+  return true;
+}
+
+// rowMoveMenuSize(menu) -> what the menu measures, isolated so the geometry has
+// exactly one input the browser owns and a test can replace.
+function rowMoveMenuSize(menu) {
+  return { width: menu.offsetWidth, height: menu.offsetHeight };
+}
+
+function positionRowMoveMenu(menu, caret) {
+  const at = RowMoveMenu.place({
+    caret: caret.getBoundingClientRect(),
+    menu: rowMoveMenuSize(menu),
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+  });
+  menu.style.top = at.top + 'px';
+  menu.style.left = at.left + 'px';
+  menu.style.maxHeight = at.maxHeight + 'px';
+  // On the element rather than only in a style, so the browser /verify can read
+  // the decision instead of inferring it from two pixel values.
+  menu.dataset.direction = at.direction;
+  return at;
+}
+
+function openRowMoveMenu(caret, item) {
+  closeRowMoveMenu(false);
+  const menu = document.createElement('div');
+  menu.className = 'move-menu';
+  menu.id = 'row-move-menu';
+  menu.setAttribute('role', 'menu');
+  menu.dataset.label = String((item && item.label) || '');
+  rowMoveItems(item).forEach((it, i) => {
+    // The two set-aside moves are a group of their own, below the two that
+    // hand the package on.
+    if (i === 2) menu.appendChild(document.createElement('hr'));
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'move-item move-item-' + it.id;
+    b.dataset.move = it.id;
+    b.setAttribute('role', 'menuitem');
+    b.title = it.title || '';
+    if (it.disabled) { b.disabled = true; b.setAttribute('aria-disabled', 'true'); }
+    const name = document.createElement('span');
+    name.textContent = it.label;
+    if (it.disabled && it.why) {
+      const why = document.createElement('span');
+      why.className = 'move-why';
+      why.textContent = it.why;
+      name.appendChild(why);
+    }
+    const key = document.createElement('span');
+    key.className = 'move-key';
+    key.textContent = it.key;
+    b.appendChild(name);
+    b.appendChild(key);
+    b.addEventListener('click', e => {
+      // A MENU CLICK IS NOT A ROW CLICK. The menu lives on <body>, so it is
+      // outside the row's own listener already — but the move it runs may
+      // re-render the row, and stopping here is the near-side half of the pair
+      // #1039 named next to every other cell control that detaches its own DOM.
+      e.stopPropagation();
+      if (it.disabled) return;
+      // CLOSED BEFORE THE MOVE RUNS, never after: the writers re-render in line
+      // and a menu still open over a rebuilt table is anchored to a caret that
+      // no longer exists.
+      closeRowMoveMenu(false);
+      it.run();
+    });
+    menu.appendChild(b);
+  });
+  // PARENTED TO <body>, position: fixed — see the .move-menu rule. Appended
+  // BEFORE it is positioned, because it has to be in the document to have a
+  // size for the geometry to place.
+  document.body.appendChild(menu);
+  rowMoveMenuEl = menu;
+  rowMoveMenuCaret = caret;
+  positionRowMoveMenu(menu, caret);
+  caret.setAttribute('aria-expanded', 'true');
+  const first = menu.querySelector('button:not([disabled])');
+  // preventScroll, or the focus scrolls the page and the scroll handler below
+  // closes the menu in the same tick it opened.
+  if (first) first.focus({ preventScroll: true });
+  return menu;
+}
+
+// buildRowMoveCaret(item) -> the ▾ beside To Station.
+function buildRowMoveCaret(item) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'move-caret';
+  btn.textContent = '▾';
+  btn.setAttribute('aria-haspopup', 'menu');
+  btn.setAttribute('aria-expanded', 'false');
+  btn.setAttribute('aria-label', 'More moves for this row');
+  btn.title = 'More moves for this row: To Station, Mark as done, Park, 503, Not ours';
+  btn.addEventListener('click', e => {
+    // NEVER THE ROW'S DETAIL DROPDOWN AND NEVER THE TRACKING COPY. The caret
+    // sits inside .action-cell, which the row handler already opts out of —
+    // this is the near-side half of that pair (#1039, #1046), so the opt-out
+    // does not depend on the caret still being in the document by the time the
+    // event bubbles.
+    e.stopPropagation();
+    e.preventDefault();
+    if (rowMoveMenuCaret === btn) { closeRowMoveMenu(false); return; }
+    openRowMoveMenu(btn, item);
+  });
+  btn.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowDown' || rowMoveMenuEl) return;
+    // ArrowDown on the focused caret opens the menu (#1037), and it must not
+    // ALSO step the Work mode cursor on the way — that handler is a bubble
+    // listener on document, and this one runs first.
+    e.preventDefault();
+    e.stopPropagation();
+    openRowMoveMenu(btn, item);
+  });
+  return btn;
+}
+
+// buildRowMoveControl(item) -> To Station, plus its caret, as one split button.
+//
+// The FACE is buildSendToStationButton's own element, unchanged and still
+// carrying .btn-to-station, so every existing test and every existing click
+// reaches exactly the button it always did.
+function buildRowMoveControl(item) {
+  const wrap = document.createElement('span');
+  wrap.className = 'move-split';
+  wrap.appendChild(buildSendToStationButton(item));
+  wrap.appendChild(buildRowMoveCaret(item));
+  return wrap;
+}
+
+// WHILE A MENU IS OPEN IT OWNS THE KEYBOARD, and this is a CAPTURE listener on
+// document for exactly that reason: Work mode's own handler is a bubble
+// listener on document, so stopping the event here — at the root, on the way
+// down — is what keeps an arrow key inside the menu from also stepping the
+// work cursor behind it. Work mode's handler does not exempt a focused BUTTON
+// from its arrows, so without this the menu and the lane would both move.
+//
+// THE CONTROL THAT MAKES THAT MEAN ANYTHING: this returns immediately when no
+// menu is open, so the same ArrowDown still reaches Work mode the rest of the
+// time. "It did not leak" is worth nothing without it — a handler that
+// swallowed arrows unconditionally would pass the leak test and break the tool.
+document.addEventListener('keydown', e => {
+  if (!rowMoveMenuEl) return;
+  // AN ORPHANED MENU OWNS NOTHING. A re-render this menu did not cause — the
+  // desk sync tick is the live one — rebuilds the table and detaches the caret
+  // underneath it, leaving a floating menu whose toggle labels are already
+  // stale. Swallowing Work mode's keys on its behalf would be the worse half of
+  // that: the menu is gone from the model and still eating the keyboard.
+  if (dropOrphanedRowMoveMenu()) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const items = Array.from(rowMoveMenuEl.querySelectorAll('button:not([disabled])'));
+  const at = items.indexOf(document.activeElement);
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    closeRowMoveMenu(true);   // focus goes back to the caret it came from
+    return;
+  }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!items.length) return;
+    const n = (at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+    items[n].focus({ preventScroll: true });
+    return;
+  }
+  // Enter and Space are the focused item's own; Tab leaves the menu entirely.
+  if (e.key === 'Enter' || e.key === ' ') return;
+  if (e.key === 'Tab') { closeRowMoveMenu(false); return; }
+  // EVERYTHING ELSE IS SWALLOWED, so a Work mode letter cannot fire a move on
+  // the cursor's row while a menu for a DIFFERENT row is open.
+  e.stopPropagation();
+}, true);
+
+// Click-away. The caret and the items both stopPropagation, so this only ever
+// sees a click somewhere else on the page.
+document.addEventListener('click', e => {
+  if (!rowMoveMenuEl) return;
+  if (dropOrphanedRowMoveMenu()) return;
+  const t = e.target;
+  if (t && t.closest && (t.closest('#row-move-menu') || t.closest('.move-caret'))) return;
+  closeRowMoveMenu(false);
+});
+
+// SCROLL AND RESIZE CLOSE IT, and on a phone that is not a nicety. At 390 the
+// action cell is `white-space: nowrap` and runs the table past the viewport, so
+// the caret itself scrolls away — and a fixed menu left behind would float with
+// no visible anchor, over rows it has nothing to do with. Capture, so a
+// scrolling container inside the page counts too; the menu's own inner scroll
+// is exempt, or a long menu would close itself the moment it was used.
+window.addEventListener('scroll', e => {
+  if (!rowMoveMenuEl) return;
+  const t = e.target;
+  if (t && t.nodeType === 1 && (t === rowMoveMenuEl || rowMoveMenuEl.contains(t))) return;
+  closeRowMoveMenu(false);
+}, true);
+window.addEventListener('resize', () => closeRowMoveMenu(false));
 
 // attachStationMarks(cell, entry) -> the delivered mark and the age pill (#999).
 //
@@ -10257,7 +10718,7 @@ function buildParkedRow(item, badges) {
   // surfaces the move is offered from. It releases the park as part of the
   // gesture — see sendToStation for why writing the override alone would be a
   // control that looks live and does nothing.
-  tr.querySelector('.action-cell').appendChild(buildSendToStationButton(item));
+  tr.querySelector('.action-cell').appendChild(buildRowMoveControl(item));
   return tr;
 }
 
@@ -21394,7 +21855,7 @@ function buildManualRow(item, bucket) {
     // #1009 review, finding 1): buildAssignedRow renders a filed row through
     // THIS builder too, and an early filed row would otherwise carry an inert
     // control that still wrote a deferred override.
-    if (!stationPaneOwnedElsewhere(label)) earlyActionTd.appendChild(buildSendToStationButton(item));
+    if (!stationPaneOwnedElsewhere(label)) earlyActionTd.appendChild(buildRowMoveControl(item));
     tr.appendChild(earlyActionTd);
   } else {
     tr.appendChild(buildActionCell(item, tr));
@@ -21605,8 +22066,15 @@ function buildActionCell(item, tr) {
   // never disagree about who owns a row. Parked rows are offered the button by
   // buildParkedRow, which is the Parked tab's own builder and is deliberately
   // not this one (spec #996 story 15 names Needs Review AND Parked).
+  //
+  // #1037 MADE IT A SPLIT BUTTON and changed NOTHING about the guard above.
+  // buildRowMoveControl wraps buildSendToStationButton's own element — the face
+  // still carries .btn-to-station and still calls sendToStation — and adds the
+  // caret beside it. The menu therefore renders exactly where To Station
+  // renders and nowhere else, so this one predicate still decides whether the
+  // control exists at all, on all three of its surfaces.
   if (!stationPaneOwnedElsewhere(String((item && item.label) || ''))) {
-    td.appendChild(buildSendToStationButton(item));
+    td.appendChild(buildRowMoveControl(item));
   }
   return td;
 }
