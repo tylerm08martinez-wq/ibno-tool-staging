@@ -291,7 +291,17 @@
     }
 
     #drop-zone {
-      border: 2px dashed #4D148C;
+      /* #1042: var(--brand-ink), NOT the hardcoded #4D148C this carried since
+         the tool shipped. theme.css deliberately does not tokenize brand
+         purple (see its own header, "Deliberately NOT tokenized"), so
+         --brand-ink — declared at the top of this file, #4D148C light and
+         #c4b5fd dark — IS the theme token for it here, and the very next rule
+         below (#drop-zone h2) already used it. Light mode is byte-identical to
+         before; dark mode gains a border that can actually be seen, because
+         #4D148C on --app-bg #14151b all but vanished. Pre-existing, found by
+         the #1042 prototype, and fixed here because this ticket puts the zone
+         on screen for more of the shift. */
+      border: 2px dashed var(--brand-ink);
       border-radius: 10px;
       padding: 56px 24px;
       text-align: center;
@@ -302,9 +312,33 @@
       user-select: none;
     }
     #drop-zone.dragover { background: var(--hover-soft); border-color: #FF6200; }
-    #drop-zone h2 { color: var(--brand-ink); font-size: 17px; margin-bottom: 6px; }
-    #drop-zone p { color: var(--text-faint); font-size: 13px; }
-    #drop-zone .hint { margin-top: 10px; font-size: 11px; color: var(--text-fainter); }
+    /* `#drop-zone h2`, `#drop-zone p` and `#drop-zone .hint` were deleted here
+       (#1060 review, LOW). The zone's old single-column heading / line / hint
+       markup is gone — #1042 replaced it with the two tiles below — so the h2
+       and .hint rules matched nothing at all.
+
+       `#drop-zone p` was NOT dead, and is folded into `.dz-tile p` rather than
+       dropped: a tile's <p> is a descendant of #drop-zone, and an ID selector
+       outranks a class one, so that rule was silently WINNING the font-size
+       against `.dz-tile p` — the tiles rendered at 13px, not the 12px the
+       tile rule asks for. 13px is therefore what `.dz-tile p` now says, so
+       this cleanup changes no pixel and the prototype's 390 measurement still
+       describes the shipped page. Deleting it blind would have shrunk the two
+       lines of copy on a change described as removing dead selectors. */
+    /* THE TWO LOAD TILES (#1042, Tyler's pick from prototype PR #1056,
+       variant A). Both reports are offered from the one element resetApp()
+       always shows, so neither #manual-section nor #set-aside-section has to
+       stay on screen empty just to keep a load control reachable.
+       Post Sort is FIRST and emphasised: ADR 0021 gives it the main slot and
+       the two reports are not interchangeable, which is exactly why the
+       auto-detecting single zone (variant B) was not picked. */
+    .dz-tiles { display: flex; gap: 18px; align-items: stretch; justify-content: center; flex-wrap: wrap; }
+    .dz-tile { flex: 1 1 260px; max-width: 420px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); padding: 22px 18px; text-align: center; }
+    .dz-tile.main { border: 2px solid var(--brand-ink); background: var(--surface); }
+    .dz-tile h3 { font-size: 14px; color: var(--brand-ink); margin-bottom: 5px; }
+    .dz-tile p { font-size: 13px; color: var(--text-faint); margin-bottom: 12px; }
+    .dz-tile .tag { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-fainter); margin-bottom: 8px; }
+    .dz-tile .btn { margin: 0 auto; }
     #file-input { display: none; }
     #merge-input { display: none; }
     /* issue #635 code review, CONFIRMED 6: both Post Sort file inputs render
@@ -405,31 +439,44 @@
       box-shadow: 0 1px 3px rgba(0,0,0,0.08);
       display: none;
     }
-    /* #manual-section (issue #669 review finding 1, CRITICAL) is deliberately
-       ALWAYS visible, unlike every other .section here — the exact same
-       pattern #post-sort-section carried pre-#662 (Fixed 2026-08-12 on PR
-       #642, same root cause). Issue #662 moved the "↑ Load Post Sort report"
-       button and both file inputs INSIDE this section, on the assumption
-       that renderEarlyLane()'s `if (postSortItems.length)` guard and
-       renderResults()'s main-report path between them would always reveal it
-       in time — but on a COLD PAGE, with no report of either kind loaded yet,
-       postSortItems is empty and renderResults has never run, so nothing
-       ever calls `el.style.display = 'block'` and the base
-       `.section { display: none; }` above wins forever. Confirmed in a real
-       browser: the button measures 0x0, hidden by this ancestor, and cannot
-       be clicked — the lane can never be started at all, which defeats the
-       entire point of #634/#661 (working Post Sort BEFORE the main report
-       lands). Exactly the deadlock the #post-sort-section comment this
-       replaces already named: "the 'Load Post Sort report' button lives
-       INSIDE this section, so hiding the section at zero rows would hide the
-       only way to ever load a first row." An ID-selector CSS rule beats the
-       class selector above regardless of source order or any future JS bug
-       (or, as happened here, any future refactor that quietly re-nests the
-       button one level deeper), so this cannot regress silently again. No JS
-       anywhere sets `#manual-section.style.display` any more (search removed
-       from renderResults/renderEarlyLane/resetApp/clearPostSortLane) — this
-       rule is the section's only visibility control, permanently on. */
-    #manual-section { display: block; }
+    /* #manual-section IS NO LONGER PERMANENTLY VISIBLE (#1042). The
+       `#manual-section { display: block; }` ID rule that used to sit here, and
+       the #669-review-finding-1 comment that justified it, are BOTH DELETED —
+       deliberately, and this comment is their replacement so the deletion
+       cannot read as an accident.
+
+       WHAT #669 FINDING 1 ACTUALLY FOUND, and why it no longer applies. #662
+       moved the "Load Post Sort report" button and both file inputs INSIDE
+       this section. On a cold page postSortItems is empty and renderResults
+       has never run, so nothing revealed the section, `.section { display:
+       none; }` won, the button measured 0x0, and the Post Sort lane could
+       never be started at all. The fix available then was to pin the section
+       open. #1042 removes the CAUSE instead: the cold-page Post Sort load
+       control now lives in #drop-zone (see .dz-tiles above and the markup
+       below), which resetApp() always shows, and #post-sort-file-input moved
+       out of this section to sit beside #file-input. Nothing a person needs in
+       order to load either report lives in here any more, so hiding an empty
+       section can no longer strand anybody.
+
+       THE DEADLOCK GUARD IS NOW A TEST, NOT A CSS RULE — which is the stronger
+       of the two, because it measures the thing #669 actually cared about (can
+       a person reach both loads?) rather than one particular element's display
+       value. tests/ibno-load-new-file-tiles-dom.test.js pins it, including the
+       cold page and the clear-early case.
+
+       VISIBILITY IS NOW JS, through ONE function: updateManualSectionVisibility(),
+       called at the end of renderManualSectionRows() — the single funnel every
+       render path already goes through (renderResults, renderEarlyLane,
+       resetApp, undo). Its predicate is noReportLoaded(): the section is on
+       screen exactly while a report of either kind is, which is also why
+       #drop-zone and this section can never both be on screen at once.
+
+       #738's "honest empty state" is SUPERSEDED for the reset case and KEPT
+       for every other: manualLaneEmptyMessage() still paints "No report loaded
+       — drop one above" and still serves a lane that is legitimately empty
+       while its sibling has rows. After a reset that line is simply no longer
+       ON SCREEN, because the section holding it is gone — which is what Tyler
+       asked for twice (#738, #1042). */
     /* Clickable, sticky section header (collapse + whole-page sticky, #166).
        NOTE: .section must NOT set overflow:hidden, or position:sticky here would
        be clipped to the section box instead of pinning to the viewport. */
@@ -2178,6 +2225,21 @@
       font-size: 11px; font-weight: 600; letter-spacing: .02em;
       color: var(--text-faint); text-transform: uppercase;
     }
+    /* THE HEADER'S ONE ROW WRAPS (#1042, browser verify at 390x844). The row
+       holds a chevron, the heading, up to five count tabs and the scope
+       caption, and its no-wrap min-content is wider than a phone card: the
+       caption — last in source — spilled out past the card's right edge onto
+       the page background. Same remedy the grouped toolbar above already uses
+       for the same reason, one declaration: the tabs and then the caption fold
+       onto further lines INSIDE the card, and the row's existing 10px gap
+       spaces them. At 1280 the row fits on one line, so nothing moves.
+
+       SCOPED TO THE HEADER LINE BY ID, not to `.section.set-aside
+       .section-header > div`. Two of the PANES below carry a .section-header
+       of their own, each with its own flex children, and the wider selector
+       would have quietly rewrapped those toolbars too — a second, unmeasured
+       change riding along on a caption fix. */
+    #set-aside-line > div { flex-wrap: wrap; }
     .set-aside-tab {
       display: inline-flex; align-items: center; gap: 6px;
       font: 700 11px/1 inherit; padding: 4px 10px; border-radius: 20px; cursor: pointer;
@@ -2634,20 +2696,90 @@
 
 <div id="area-conflict-panel"></div>
 
+<!-- THE DROP ZONE NOW OFFERS BOTH REPORTS (#1042, Tyler's pick = prototype
+     PR #1056 variant A, "both loads as two tiles inside the drop zone").
+     Measured in the prototype at 1280: 276px of zone, and ZERO empty section
+     shells left on the post-reset page, against 368px of empty shell (40% of
+     the page) before.
+
+     WHY IT MATTERS RATHER THAN BEING TIDINESS: this is the one element
+     resetApp() always shows. With the Post Sort load reachable from here,
+     #manual-section is free to hide when no report is loaded, which is what
+     #669 finding 1 and #738 both had to work around. See the deleted
+     `#manual-section { display: block; }` rule's replacement comment in the
+     <style> block above for the full supersession note.
+
+     THE ZONE ITSELF IS STILL THE MAIN REPORT'S DROP TARGET AND CLICK TARGET,
+     unchanged: drag anywhere onto it, or click anywhere on it that is not the
+     Post Sort tile, and you get the Inbound and Van Scans picker exactly as
+     before (PRD story 5 — no second gesture to learn). The Post Sort tile
+     stops the click from bubbling, so its own button is the only thing that
+     acts inside it.
+
+     ADR 0021 IS WHY POST SORT IS FIRST AND EMPHASISED, and why this is two
+     tiles rather than one auto-detecting zone (prototype variant B): Post Sort
+     holds the main slot, the two reports are not interchangeable, and a single
+     target would quietly assert that they are. -->
 <div id="drop-zone"
      onclick="document.getElementById('file-input').click()"
      ondragover="onDragOver(event)"
      ondragleave="onDragLeave(event)"
      ondrop="onDrop(event)">
-  <h2>Drop your CSV here</h2>
-  <p>or click to browse</p>
-  <div class="hint">Inbound and Van Scans &mdash; Full Detail by Date, or a Day Export (.json)</div>
+  <div class="dz-tiles">
+    <div class="dz-tile main" id="dz-tile-post-sort" data-probe="dz-postsort"
+         onclick="event.stopPropagation()">
+      <span class="tag">Main slot</span>
+      <h3>Post Sort report</h3>
+      <!-- Copy held to the prototype's own length on purpose: its 390px
+           measurement (469px of zone) was taken against this wording, and a
+           longer line wraps and blows the number this build is held to. The
+           report's full name lives in the button's title instead. -->
+      <p>The report you work from every sort day.</p>
+      <!-- Distinct id from the early strip's #post-sort-load-btn on purpose.
+           The two are never on screen together — #drop-zone is shown exactly
+           while no report is loaded and #manual-section exactly while one is
+           (pinned in tests/ibno-load-new-file-tiles-dom.test.js) — so this is
+           the COLD-PAGE load and that one is the in-shift re-drop of Tyler's
+           daily loop. Both click the same single #post-sort-file-input. -->
+      <button class="btn btn-purple" id="dz-post-sort-btn" data-probe="input-postsort"
+              onclick="event.stopPropagation();document.getElementById('post-sort-file-input').click()"
+              title="Load the Inbound Scan - No Van Scan - Post Sort report (.xlsx). It takes the main slot — ADR 0021.">&#8593; Load Post Sort report</button>
+    </div>
+    <div class="dz-tile" id="dz-tile-main" data-probe="dz-main">
+      <span class="tag">Drop or click</span>
+      <h3>Inbound and Van Scans</h3>
+      <p>Full Detail by Date &mdash; .csv or .xlsx, or a Day Export .json</p>
+      <!-- event.stopPropagation() for the same reason the Post Sort tile has
+           it (#1060 review, LOW): #drop-zone's own onclick ALSO calls
+           #file-input.click(), so without this one press of this button fires
+           the picker twice — the handler here, then the zone's as the click
+           bubbles. Chrome coalesces the second into the first often enough to
+           look fine, and jsdom's {once:true} listeners hid it outright, so it
+           was caught by reading rather than by a red test. The zone keeps its
+           own click target: clicking anywhere else on the zone still browses
+           for the Inbound and Van Scans report (PRD story 5). -->
+      <button class="btn btn-gray" id="dz-main-btn" data-probe="input-main"
+              onclick="event.stopPropagation();document.getElementById('file-input').click()"
+              title="Load the Inbound and Van Scans report, or a 999 Desk Day Export">Choose file&hellip;</button>
+    </div>
+  </div>
 </div>
 <!-- .json is here for the Day Export (#794), and ONLY on this input. The Post
      Sort and barcode-lookup inputs stay spreadsheet-only: this is the drop
      target Tyler already uses for a report all day, and PRD story 5 is that he
      does not have to learn a second gesture. -->
 <input type="file" id="file-input" accept=".csv,text/csv,.xlsx,.xls,.json,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onchange="handleFile(this.files[0])">
+<!-- #post-sort-file-input LIVES HERE NOW, not inside #manual-section (#1042).
+     #662 put it in that section; #1042 lets that section hide, and a file input
+     inside a display:none ancestor is exactly the shape of the #669 deadlock.
+     Out here it sits beside #file-input, in the one region of the page nothing
+     ever hides, and BOTH of its buttons (#dz-post-sort-btn on the cold page,
+     #post-sort-load-btn in the early strip mid-shift) reach the same element.
+     Spreadsheet-only, unchanged: lib/post-sort-scans.js refuses the mangled
+     sibling CSV loudly and that refusal is the point. -->
+<input type="file" id="post-sort-file-input"
+  accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+  onchange="handlePostSortFile(this.files[0])">
 
 <div id="summary">
   <div class="stat-card green" data-target="auto-section">
@@ -2905,11 +3037,16 @@
     <button class="btn btn-gray" id="copy-selected-post-sort" onclick="copySelectedPostSort()" disabled title="Copy the checked rows (tracking # or full barcode per the Copy-as toggle). Tracking # to paste into the Track IDs to Full Barcode lookup; barcode once that lookup's result is loaded back in below.">Copy selected (0)</button>
     <button class="btn btn-gray" id="copy-flagged-post-sort" onclick="copyFlaggedLookupBatch()" disabled title="One click: copies the tracking numbers for rows in YOUR flagged work areas (the same list as the Flagged Work Areas setting above) that still need the barcode lookup — skips rows the loaded reports already resolved and barcode conflicts. Paste straight into the Track IDs to Full Barcode lookup.">Copy flagged-area tracking #s (0)</button>
     <button class="btn btn-gray" id="post-sort-barcode-load-btn" onclick="document.getElementById('post-sort-barcode-file-input').click()" style="display:none" title="Load the Track IDs to Full Barcode lookup's result CSV — joins onto these rows by tracking number">&#8593; Load barcode lookup CSV</button>
+    <!-- THE IN-SHIFT RE-DROP (#1042 keeps this button exactly where #662 put
+         it, and it is NOT a duplicate control). #drop-zone's #dz-post-sort-btn
+         is the COLD-PAGE load; this one is Tyler's documented daily loop —
+         load Post Sort, review, park, code, RE-DROP, repeat (see the
+         ingestPostSortRecords comment on that loop) — which happens while a
+         report is on screen and the drop zone therefore is not. The two are
+         never visible at the same moment, and both click the same
+         #post-sort-file-input, which now lives out by #file-input. -->
     <button class="btn btn-gray" id="post-sort-load-btn" onclick="document.getElementById('post-sort-file-input').click()">&#8593; Load Post Sort report</button>
     <button class="btn btn-gray" id="post-sort-clear-btn" onclick="clearPostSortLane()" style="display:none">&larr; Clear early</button>
-    <input type="file" id="post-sort-file-input"
-      accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-      onchange="handlePostSortFile(this.files[0])">
     <!-- Track IDs to Full Barcode lookup result — CSV ONLY (notes/report-registry.md:
          never open this file in Excel, it destroys the 34-char barcode's precision;
          reading it as text here never round-trips through Excel so that risk does
@@ -12244,6 +12381,78 @@ function renderManualSectionRows() {
   updateExpressSection();
   renderMergedChips('manual');   // live counts before the rows are filtered by them
   applyManualSearch();   // apply current collapse, search and chip slice to the fresh rows
+  // #1042: the section's ONE visibility control, at the end of the ONE funnel
+  // every render path already goes through. See updateManualSectionVisibility.
+  updateManualSectionVisibility();
+}
+
+// noReportOnScreen() -> is this page showing nothing at all, the state a cold
+// boot and "Load New File" both land in? (#1042)
+//
+// IT IS NOT JUST noReportLoaded(), AND THE DIFFERENCE IS A REAL BUG AVOIDED.
+// noReportLoaded() reads `lastRows`, the parsed main report — and
+// restoreSession() DELIBERATELY never sets it ("Re-run needs the original CSV,
+// which a restore doesn't have"). So after an F5 onto a restored main session
+// the page is full of rows while noReportLoaded() answers true. Keying the
+// section's visibility on that alone would hide a populated Needs Manual
+// Review on every refresh, which is a far worse bug than the empty shell this
+// ticket removes. The rendered MODEL is the thing that is true on both paths.
+//
+// IT IS ALSO NOT "this lane has zero rows". A report that legitimately
+// produces no manual rows still owns the page: the early strip carries the
+// Post Sort badge, the disposition fold and the barcode-lookup loop, and
+// #738's honest empty line still has a lane to explain. Keying on rows would
+// take all of that away at the moment the last package is coded, which is the
+// worst possible moment to be told the section does not exist.
+//
+// Every term is cleared by resetApp() (lastRows = null, the three model arrays
+// emptied, clearPostSortLane() at the top), so "Load New File" lands on true
+// and nothing empty is left on screen.
+function noReportOnScreen() {
+  return noReportLoaded()
+    && !manualItems.length && !autoItems.length && !resolvedItems.length;
+}
+
+// updateManualSectionVisibility() -> #manual-section is on screen exactly while
+// a report is (#1042). The section's ONE visibility control; no other code path
+// writes #manual-section.style.display, which is how #673 finding 1's
+// two-copies-of-one-rule failure is kept from recurring here.
+//
+// THIS IS WHAT MAKES THE #669 DEADLOCK UNREACHABLE BY CONSTRUCTION rather than
+// by a pinned CSS rule: #drop-zone is shown exactly when no report is on
+// screen and this section exactly when one is, so at every instant one of the
+// two is up — and the Post Sort load control lives in whichever that is
+// (#dz-post-sort-btn in the zone, #post-sort-load-btn in the early strip).
+// tests/ibno-load-new-file-tiles-dom.test.js pins both halves of that
+// complement, cold page and Clear-early included.
+//
+// Nothing here touches a record store, a badge or a count — purely which box is
+// drawn. The rows themselves were already rendered by the caller.
+//
+// IT ENDS IN syncCollapseAllButton() BECAUSE IT CHANGES THAT BUTTON'S ANSWER
+// (#1060 review, MEDIUM). "Collapse all" vs "Expand all" is computed over the
+// sections that are NOT display:none, so every write above is a write to the
+// button's input. The two load paths happened to be safe — both are followed
+// by a collapse pass that ends in syncCollapseAllButton() anyway — but
+// clearPostSortLane() is not: it hides this section through renderEarlyLane()
+// and nothing re-read the button, so "Clear early" on a Post-Sort-only page
+// left the header still offering to collapse a page with nothing open on it.
+// #1061's jump strip reads the same visible-section set.
+//
+// Putting the call HERE rather than at that one call site is the point: this
+// function is already the section's one visibility control, so making it the
+// one place that republishes the consequence covers clearPostSortLane(),
+// resetApp() and every future caller at once, instead of adding a second copy
+// of the rule for each — the #673 finding 1 failure mode.
+//
+// Safe to call this often: syncCollapseAllButton() only reads the DOM and
+// writes a label, and where a caller already synced afterwards that later call
+// simply wins.
+function updateManualSectionVisibility() {
+  const sec = document.getElementById('manual-section');
+  if (!sec) return;
+  sec.style.display = noReportOnScreen() ? 'none' : 'block';
+  syncCollapseAllButton();
 }
 
 const SESSION_KEY = 'ibno_session';
@@ -17859,14 +18068,20 @@ function clearPostSortLane() {
   postSortStatus('', false);
   postSortBarcodeStatus('', false);
   renderEarlyLane();
-  // Issue #669 review finding 7/8: #manual-section itself is never hidden
-  // again (see its CSS rule's own comment) — the early strip's "Load Post
-  // Sort report" button must stay reachable, "Clear early" included, which
-  // is the same reason it must be reachable on a cold page in the first
-  // place. #summary is different: nothing depends on the stat cards being
-  // reachable for further input, so it is hidden again here, but ONLY when
-  // there is truly nothing left to report — a main report loaded on its own
-  // (lastRows) still owns the cards even with no early rows left.
+  // Issue #669 review finding 7/8, RE-ANSWERED BY #1042. That finding was
+  // "Clear early with no main report must not be a dead end", and its answer
+  // was to keep #manual-section (and the load button inside it) permanently
+  // visible. #1042 hides that section when no report is loaded, so the dead
+  // end would be back — except that the answer is now the right one: bring
+  // #drop-zone BACK, which is where both loads live. renderEarlyLane() above
+  // has already recomputed the section's own visibility through
+  // updateManualSectionVisibility(); this block owns the page-level "there is
+  // no report at all" chrome.
+  //
+  // #summary rides the same condition for the reason it always did: nothing
+  // depends on the stat cards being reachable for further input, so they are
+  // hidden when there is truly nothing left to report — a main report loaded
+  // on its own (lastRows) still owns the cards even with no early rows left.
   //
   // The lane SECTIONS are not hidden here any more (PR #673 review finding 1):
   // renderEarlyLane(), called just above, now recomputes each one's visibility
@@ -17877,6 +18092,23 @@ function clearPostSortLane() {
   if (!postSortItems.length && !(Array.isArray(lastRows) && lastRows.length > 0)) {
     const summary = document.getElementById('summary');
     if (summary) summary.style.display = 'none';
+    // #1042: the page is back to "no report loaded", so it must look like it —
+    // both loads on screen, nothing empty above them. Without this, "Clear
+    // early" on a Post-Sort-only page left a page with no report, no drop zone
+    // and (now) no #manual-section: the #669 dead end, reintroduced.
+    const zone = document.getElementById('drop-zone');
+    if (zone) zone.style.display = 'block';
+    const resetBtn = document.getElementById('reset-btn');
+    if (resetBtn) resetBtn.style.display = 'none';
+    // THE HEADER'S Collapse-all BUTTON IS DELIBERATELY NOT TOUCHED HERE
+    // (#1060 review, MEDIUM). Its LABEL is already correct by the time this
+    // block runs: renderEarlyLane() above ends in
+    // updateManualSectionVisibility(), which now ends in
+    // syncCollapseAllButton(). Its VISIBILITY needs nothing — the button is
+    // only ever revealed by a MAIN report load or a session restore, and this
+    // block runs only when there is no main report, so on every path that
+    // reaches here it is already display:none. A hide written anyway would be
+    // unreachable code with no control that could ever catch it working.
   }
 }
 
@@ -18383,9 +18615,12 @@ function renderEarlyLane() {
   // and the marker for "this page has the early strip at all". The row render
   // is delegated to renderManualSectionRows() and does not depend on it.
   if (!badge) return;
-  // #manual-section is permanently visible now (issue #669 review finding 1
-  // — see the #manual-section CSS rule's own comment), so no reveal call is
-  // needed here for it any more. #summary (the Total/Ready/Needs Review stat
+  // #manual-section needs no reveal call here (#1042): renderManualSectionRows(),
+  // which this function delegates the row render to, ends in
+  // updateManualSectionVisibility() — the section's ONE visibility control, in
+  // both directions. This used to read "permanently visible (issue #669 review
+  // finding 1)"; that rule is gone, and the deadlock it guarded is now closed
+  // by #drop-zone carrying both loads. #summary (the Total/Ready/Needs Review stat
   // cards), however, is still JS-revealed like every other optional block on
   // this page — unlike the section itself, nothing depends on the cards
   // being reachable for further input, so leaving them display:none until
@@ -23789,6 +24024,32 @@ function resetApp() {
   // sequence that used to cost a shift's work is Load New File between a
   // Post Sort report dated 8/12 and the 1:30 AM main pull dated 8/11.
   loadedReportDay = '';
+  // THE TRANSIENT PILL IS DISMISSED, because after this line it can only be
+  // talking about a report that is no longer on screen (#1042, caught by the
+  // browser verify, not by jsdom).
+  //
+  // The frame it was caught in: park a package, and the pill says "Parked
+  // 875471440123, waiting in the Set aside group at the page bottom" — true
+  // when it is spoken. Click Load New File inside the 2.6s the pill is up, and
+  // that sentence is now sitting over a Set aside strip whose Parked badge
+  // reads 0, pointing at a place the package is not drawn.
+  //
+  // THE BADGE IS THE ONE TELLING THE TRUTH, so the pill is what goes. The park
+  // store survives this reset byte-for-byte and the verify read it back; the
+  // badge reads 0 because parkedDrawItems() is gated on a loaded report (#732 —
+  // "the projection supplements a loaded report; it does not become a report"),
+  // so there is no row to count or offer an Unpark on. Making the badge count
+  // the survivor instead would mean drawing rows out of a memory of a report
+  // that is not on screen, with an Unpark that has no working list to return
+  // to. That is the deferred feature #1063, not a copy fix.
+  //
+  // hideGoesToNote() rather than a textContent write: it also clears the warn
+  // suppression window, which is right here and nowhere else — a drift-guard
+  // warning claims the channel for 8s so routine notes cannot erase it, and
+  // that protection is about rows in the report this click just discarded.
+  // The TEXT is deliberately left in the hidden element, exactly as the
+  // ordinary timeout leaves it.
+  hideGoesToNote();
   document.getElementById('drop-zone').style.display       = 'block';
   document.getElementById('reset-btn').style.display       = 'none';
   document.getElementById('rerun-btn').style.display       = 'none';
@@ -23799,6 +24060,13 @@ function resetApp() {
   document.getElementById('sort-date-note').style.display   = 'none';
   document.getElementById('sort-date-note').textContent     = '';
   document.getElementById('collapse-all-btn').style.display = 'none';
+  // The LABEL here is now a floor, not the last word (#1060 review, MEDIUM):
+  // renderManualSectionRows() further down ends in
+  // updateManualSectionVisibility(), which republishes the button off the
+  // sections actually on screen and will land on "Expand all" for a page that
+  // has none. Kept rather than deleted so this function still leaves a sane
+  // value even if that funnel is ever short-circuited; the button is hidden on
+  // this path either way, so the two never disagree in front of anybody.
   document.getElementById('collapse-all-btn').textContent  = '✄ Collapse all';
   document.getElementById('clean-export-btn').style.display = 'none'; // #385
   document.querySelectorAll('.section').forEach(s => s.classList.remove('collapsed'));
@@ -23823,13 +24091,17 @@ function resetApp() {
     const sec = document.getElementById(lane.section);
     if (sec) sec.style.display = 'none';
   });
-  // #manual-section is permanently visible (issue #669 review finding 1 —
-  // see the CSS rule's own comment): the Post Sort lane's early strip and
-  // rows live inside it, and the whole point of that fix is that this
-  // section must never be hidden again by ANY code path, "Load New File"
-  // included — hiding it would re-open the exact deadlock finding 1 fixed
-  // (nothing left to reveal the section again until a report drops onto a
-  // button that is once more unreachable). No JS hide call for it here;
+  // #manual-section IS HIDDEN BY THIS RESET NOW (#1042), which reverses the
+  // rule #669 review finding 1 wrote and #738 worked around. It is not hidden
+  // HERE, though: renderManualSectionRows() runs near the end of this function
+  // and ends in updateManualSectionVisibility(), which is the section's one
+  // visibility control — restating it here would be the second copy of a rule,
+  // which is exactly how the lane sections got to disagree in #673 finding 1.
+  //
+  // The deadlock finding 1 named is closed at its source instead: the Post
+  // Sort load control and #post-sort-file-input moved out to #drop-zone, which
+  // the line above has just set back to `block`. So this reset leaves BOTH
+  // loads on screen and nothing empty above them, which is the whole ticket.
   // #manual-tbody's own stale markup is still cleared below.
   document.getElementById('resolved-section').style.display = 'none';
   document.getElementById('repeat-section').style.display  = 'none';

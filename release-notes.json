@@ -529,6 +529,30 @@
       "commit": "78f0177",
       "shippedAt": null,
       "order": 22
+    },
+    {
+      "id": "pr-1060",
+      "pr": 1060,
+      "issue": 1042,
+      "tool": "ibno-coder",
+      "title": "Load New File empties the review list, and both reports load from the drop zone",
+      "summary": "After Load New File the empty Needs Manual Review box is gone and the drop zone offers both reports side by side. Set aside stays only while one of its tabs still holds packages.",
+      "watchFor": [
+        "Set aside stays while any tab still holds packages. Station packages carry over from day to day, so on a real sort the strip is usually still there, counting what is left.",
+        "The park is never cleared. The parked tab reads zero while no report is loaded, because there is no row to draw yet, and the package is back the moment you load the next report.",
+        "Post Sort is the first tile because it takes the main slot. Once a report is loaded the drop zone stands down, so swap in a fresh pull from the review strip as before.",
+        "In dark mode the drop zone outline is light purple now. It used to be a faint grey a shade off the page and was easy to miss on an empty screen."
+      ],
+      "howToSee": [
+        "Load today report and code a few rows",
+        "Click Load New File",
+        "Needs Manual Review is gone, and the drop zone with both loads is back",
+        "Park a row and click Load New File again: the parked tab reads zero, and the park itself is kept",
+        "Load a report and the parked package is counted again and ready to unpark"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
     }
   ],
   "queueIssue": 1025
