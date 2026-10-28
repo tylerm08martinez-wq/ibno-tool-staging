@@ -980,6 +980,12 @@
       margin-bottom: 6px;
     }
     #settings-panel .hint-text { font-size: 11px; color: var(--text-faint); margin-bottom: 10px; }
+    /* A checkbox setting reads as a sentence, not a section heading, so it
+       drops the heading label's caps and weight. */
+    #settings-panel label.settings-check {
+      display: flex; align-items: center; gap: 8px; cursor: pointer;
+      text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text);
+    }
     /* #station-aliases-input rides the SAME rule as the Flagged Work Areas box
        (#1001): one more selector rather than a second block, so the two boxes
        cannot drift and dark mode comes free through the same vars. */
@@ -2638,6 +2644,19 @@
     <div class="settings-actions">
       <button class="btn btn-purple" id="save-device-name" onclick="saveDeviceName()">Save device name</button>
       <span id="device-name-status">&#10003; Saved</span>
+    </div>
+
+    <!-- ── THE ADDRESS CHIP (Tyler, 2026-10-26) ─────────────────────────────
+         SUPERVISOR DEVICES ONLY, gated like the station config editor above
+         (fillFtrackAddressSettings). The admins work no-address rows from the
+         FTrack history page on purpose; this is Tyler's shortcut to the
+         delivery page when he just needs the address. A UI permission, not a
+         security boundary — see lib/desk-roles.js. -->
+    <div id="ftrack-address-settings">
+    <hr class="settings-divider">
+    <label>FTrack Address chip</label>
+    <div class="hint-text">Adds an <strong>Address &#8599;</strong> chip beside FTrack on rows with no house number and street (the same rows <em>Hide no-address</em> counts). It opens FTrack's delivery page, which shows the address, one click sooner than the history page. The FTrack chip still opens the full history. This device only, and saved as soon as you tick it.</div>
+    <label class="settings-check" for="ftrack-address-toggle"><input type="checkbox" id="ftrack-address-toggle" onchange="setFtrackAddressChip(this.checked)"> Show the Address chip on no-address rows</label>
     </div>
 
     <hr class="settings-divider">
@@ -4610,6 +4629,7 @@ function toggleSettings() {
     // what is actually saved, not what was typed into it last time, and the
     // device name — which is what the gate reads — can have changed since.
     fillStationSettings();
+    fillFtrackAddressSettings();
     fillSyncSettings();
     // The desk channel's fields, on the same terms as the Repeat History's
     // above — and this call is not cosmetic (#918 review finding 1). Without
@@ -4844,6 +4864,12 @@ function saveDeviceName() {
     // Save. Both writers re-ask the gate, so nothing could be written, but
     // the page was showing an affordance the device no longer has.
     fillStationSettings();
+    // AND THE ADDRESS CHIP, same gate, same reason: its toggle, and the
+    // Ready to Enter rows, which the two renders above do not reach.
+    // addressChip() asks the gate at render time, so a rebuilt row follows
+    // the new name; this is what rebuilds the auto-coded ones.
+    fillFtrackAddressSettings();
+    renderAutoSectionRows();
     restoreWorkCursor(cursorLabel);
     // THE DEVICE NAME IS THE 999 DESK CHANNEL'S OFF SWITCH, IN BOTH DIRECTIONS
     // (#918 round-three finding 5). deskPublishReady() has always required it,
@@ -8097,7 +8123,8 @@ function repaintForRemoteFiled() {
   if (lastRemoteFiledKey === null) lastRemoteFiledKey = remoteNoteKey(DeskState.empty());
   // #990 PUTS THEIR PARK IN THE SAME KEY. The note set is what has to be
   // repainted, and it moves when EITHER store moves: their marked-done routes a
-  // row (or draws a `503 ·` note), their park draws a `Parked ·` note. Keyed
+  // row into one set-aside tab or another, their park draws a `Parked ·` note
+  // on a row that stays. Keyed
   // together rather than in a second latch so one poll tick cannot repaint for
   // one store and leave the other's note a tick stale on screen. The park half
   // is NOT day-gated, matching DeskState.parkedBy (a park carries across a sort
@@ -8109,12 +8136,20 @@ function repaintForRemoteFiled() {
   // areas adapter's fetch (line ~4727, BEFORE RemoteAreas.applyTo has run) and
   // once from deskPullOnLoad's tail (AFTER it). Under #971 that was harmless
   // because the routing did not depend on the area, so both calls agreed.
-  // #990 routes BY AREA, so the first call decides with the area still absent:
+  // #990 routed BY AREA, so the first call decides with the area still absent:
   // it reads their 503 as a normal area, files the row away into Work area
   // assigned, latches the key — and the second call, seeing the same label set,
   // returns early and never corrects it. Reproduced as a RED test on the first
   // pull of a fixture whose 503 and marked-done arrive together, which is the
-  // ordinary morning case. Folding the 503-ness in means the key genuinely
+  // ordinary morning case.
+  //
+  // #1072 DOES NOT RETIRE THIS, and it is worth saying why, because #1072 is
+  // the change that stopped the AREA deciding whether the row leaves the
+  // working list. It still decides WHICH TAB catches it — a 503 to the 503s
+  // tab, anything else to Work area assigned — so the two calls still disagree
+  // across applyTo, and the row still lands in the wrong tab and latches there
+  // if the key cannot tell them apart. The failure moved; it did not go away.
+  // Folding the 503-ness in means the key genuinely
   // moves when the areas land, and a poll that changed nothing still costs one
   // string compare. is503Label is the same reader the routing uses, so the two
   // cannot disagree about which rows those are.
@@ -8702,18 +8737,42 @@ function isRemoteAnsweredOnly(item) {
 //
 //   isRemoteFiledAway(item)
 //     "Has this row left MY working list because they finished it?"
-//     YES only when their marked-done carries a NORMAL area. That row moves to
-//     Work area assigned, credited to them and read-only, exactly as #971
-//     shipped it. THIS is the predicate on the answer path: isSetAside, both
-//     working-lane filters, the coded-row filter and remoteAssignedRows().
+//     YES on ANY marked-done, whatever area it carries. THIS is the predicate
+//     on the answer path: isSetAside, both working-lane filters, the coded-row
+//     filter and remoteAssignedRows(). WHERE the row then lands is a separate
+//     question each tab asks for itself — a normal area to Work area assigned,
+//     a 503 to the 503s tab (setAside503Predicate's remote arm).
 //
-//   isRemoteFiled503(item)
-//     "Did they finish this row with a 503, so it STAYS mine to work and only
-//     carries a note?" It reaches the NOTE and nothing else — no tab, no badge,
-//     no isSetAside, no progress denominator (#990 decision A2: it does not
-//     count as done). The 503s tab is Tyler's own pallet handoff and a row he
-//     has not barcoded does not belong in it; #944 decision 2's "one package is
-//     never in two tabs" is what would break if it did.
+// ─── #1072 PUTS THE 503 BACK ON THE ANSWER PATH, AND THE PREMISE IS WHY ─────
+//
+// #990 narrowed this predicate to `&& !is503Area` and sent a marked-done 503 to
+// a NOTE instead of a move. The argument was sound at the time and it is worth
+// stating before undoing it: the 503s tab is Tyler's PALLET HANDOFF, copyAll503
+// points a scanner at it, and in September 2026 a 503 on another desk meant
+// only that somebody had typed the flag. Nobody had walked the package. Putting
+// it in that tab would have promised a pallet that did not exist.
+//
+// #1036 CHANGED THAT FACT. The 503 button is no longer "type the flag for me":
+// clickFile503 commits the flag and then calls markFiledBatch, so the click IS
+// the handoff gesture, and a row only reaches this device marked-done because a
+// human pressed a control whose label, tooltip and toast all say it files the
+// row. Tyler, 2026-09-23: "when they click the new 503 button that moves it
+// right away to the 503 tab, it should also show that on my side. right now
+// they stay on there with 503 in the goes to collum and sit there until i
+// manually move them."
+//
+// THE KEYSTROKE IS UNTOUCHED, and that is the whole reason this is a split and
+// not a widening. Tyler, same day: "if they type in 503 on the goes to collum i
+// want it to stay there until they mark as done then go to the 503 tab. but if
+// they press the 503 button it automatically goes there and will also go there
+// on my side." A TYPED 503 publishes an AREA and no filing, so it arrives here
+// on the remote-areas lane, lands in the Goes To box, and stays workable — it
+// is `isRemoteFiled` that is false for it, not a 503 test. The area still never
+// triggers anything (#971 decision A4, unchanged); the marked-done does.
+//
+// PARK IS NOT PART OF THIS REVERSAL. #990's park note stands exactly as shipped
+// — pure display, never isSetAside, never his parkedStore (#990 decision A1).
+// Only the 503 half moves back to #971's shape.
 //
 //   isRemoteFiledOnly(item)
 //     "Is this row sitting in a set-aside tab on the strength of THEIR
@@ -8723,13 +8782,20 @@ function isRemoteAnsweredOnly(item) {
 //     his own control away from it would be a records-tier button that vanished
 //     because somebody else pressed one on another device.
 //
-// THE AREA IS READ THROUGH is503Area, THE SAME READER THE LANES USE, so the
-// split cannot disagree with the 503 tag drawn on the row. It is still never
-// the TRIGGER — the marked-done is (that is #971 decision A4, unchanged) — it
-// only routes a marked-done that has already happened.
-function isRemoteFiledAway(item) { return isRemoteFiled(item) && !is503Area(item); }
-
-function isRemoteFiled503(item) { return isRemoteFiled(item) && is503Area(item); }
+// THE TWO NAMES ARE KEPT SEPARATE EVEN THOUGH THE ANSWERS NOW COINCIDE, which
+// is the choice setAside503Predicate/handed503Predicate already make a few
+// hundred lines below for the same reason. "Did they mark it done" and "has
+// this row therefore left my working list" are two questions with two futures,
+// and ADR 0022's rule is that a consumer names its own question rather than
+// borrowing a neighbour's. Fusing them would put the next routing rule inside
+// isRemoteFiled, which a dozen call sites read as the raw fact.
+//
+// WHERE THE 503 EXCLUSION WENT: into remoteAssignedRows(), which is the tab
+// that needs it. That tab must still refuse a 503 — the 503s tab claims it and
+// one package is never in two tabs (#944 decision 2) — but that is a fact about
+// THAT TAB, not about whether the row left the working list, and #990 put it in
+// the lifecycle predicate where every lane filter inherited it by accident.
+function isRemoteFiledAway(item) { return isRemoteFiled(item); }
 
 function isRemoteFiledOnly(item) {
   return isRemoteFiled(item) && !IbnoFiled.isFiled(filedStore, item && item.label);
@@ -9153,26 +9219,32 @@ function handed503Predicate() {
 // change a population that feeds the progress denominator.
 function setAside503Predicate() {
   const handed = handed503Predicate();
-  // #990 REMOVES THE REMOTE ARM THAT #971 COMPOSED HERE, and the removal is the
-  // ticket. Tyler, 2026-09-09: "for the 503 and parked, I want it to still be
-  // in the needs manual review tab but has a little note". A 503 the other desk
-  // marked done is no longer set aside on this device at all: it stays in Needs
-  // Manual Review carrying a `503 · <name>` note (isRemoteFiled503), stays in
-  // the progress denominator as work remaining, and never enters the 503s tab —
-  // which is TYLER'S PALLET HANDOFF, and copyAll503() would otherwise point a
-  // scanner at a package he never barcoded (#944 decision 2).
+  // #1072 PUTS THE REMOTE ARM BACK, which is #971's arm returning after #990
+  // removed it. The premise changed underneath the removal: since #1036 the 503
+  // button IS the handoff gesture (clickFile503 commits the flag and then calls
+  // markFiledBatch), so a marked-done 503 arriving from another desk is a
+  // package a human actually handed off, not merely a flag somebody typed. That
+  // is the one thing #990 could not assume, and the whole of its argument
+  // against this arm. Tyler, 2026-09-23: "it should also show that on my side.
+  // right now they stay on there with 503 in the goes to collum and sit there
+  // until i manually move them."
   //
-  // The two names are KEPT SEPARATE even though the answers now coincide. They
-  // are two questions — "did the local handoff happen" and "has this 503 left
-  // the working list" — and ADR 0022's rule is that a consumer names its own
-  // question rather than borrowing a neighbour's. Fusing them would make the
-  // next remote arm land in handed503Predicate, which feeds the progress
-  // denominator through barcodeFiled503Rows().
+  // A TYPED 503 IS STILL NOT SET ASIDE, on this device or theirs. It publishes
+  // an area and no filing, so isRemoteFiled is false for it and this arm never
+  // fires — which is Tyler's own split ("if they type in 503 ... it stays there
+  // until they mark as done"), and it is the paired control every test of this
+  // arm carries. The AREA still triggers nothing (#971 decision A4).
   //
-  // #986 finding 1's park-outranks-marked-done clause went with the arm it
-  // guarded: there is no longer a remote path into this tab for a park to
-  // outrank. The Work area assigned tab keeps its copy, where the arm survives.
-  return it => handed(it);
+  // #986 finding 1's park-outranks-marked-done clause comes back WITH the arm
+  // it guards — it is the block above this function, which has described this
+  // arm all along and is accurate again as of this line.
+  //
+  // The two names stay separate even where the answers overlap: "did the local
+  // handoff happen" and "has this 503 left the working list" are two questions,
+  // and fusing them would push the remote arm into handed503Predicate, which
+  // feeds the progress denominator through barcodeFiled503Rows().
+  return it => handed(it) ||
+    (!IbnoParked.isParked(parkedStore, it && it.label) && isRemoteFiled(it));
 }
 
 // handedOff503Rows() is PINNED BACK to handed503Predicate (#986 review, finding
@@ -9322,7 +9394,7 @@ function build503Row(item) {
   tr.dataset.label = item.label;
   tr.innerHTML =
     '<td class="mono"><span class="label-copy" title="Click to copy">' + ToolHelpers.escapeHtml(item.label) + '</span>' +
-      '<span class="row-chips">' + FTrack.ftrackLink(item.label) + setAsideBarcodeChip(item) + streetChip(item) + eopsChip(item) + '</span></td>' +
+      '<span class="row-chips">' + FTrack.ftrackLink(item.label) + addressChip(item) + setAsideBarcodeChip(item) + streetChip(item) + eopsChip(item) + '</span></td>' +
     '<td class="cat-text">' + ToolHelpers.escapeHtml(item.category || '\u2014') + '</td>' +
     '<td class="cat-text">' + ToolHelpers.escapeHtml(item.ibWork || '\u2014') + '</td>' +
     '<td>' + recipientCellHtml(item.firm, item.address) + '</td>' +
@@ -9344,14 +9416,18 @@ function build503Row(item) {
   // very next publish would put the area straight back. The pill goes where the
   // button would have been, so the cell says who did it instead of offering a
   // control that does not belong to this device.
-  // #990: isRemoteFiledOnly, NOT isRemoteFiled. Their marked-done no longer
-  // puts a 503 row in this tab at all (setAside503Predicate lost that arm), so
-  // the only row that can be BOTH here and remote-filed is one TYLER barcoded
-  // and confirmed himself. That row is his: taking his Clear 503 away because
-  // an admin pressed marked-done on their device would strand a package he
-  // filed, on the surface that feeds the pallet handoff. The guard is kept
-  // rather than deleted because it is the correct statement of the question and
-  // the day a remote 503 is drawn here again it is already right.
+  // #990: isRemoteFiledOnly, NOT isRemoteFiled — and #1072 is the day that
+  // choice paid for itself. #990 kept this guard after removing the arm that
+  // fed it, on the argument that it was the correct statement of the question
+  // and "the day a remote 503 is drawn here again it is already right". That
+  // day is #1072: their marked-done 503 reaches this tab once more, and this
+  // line needed no edit to greet it correctly.
+  //
+  // The distinction it draws is the load-bearing one. A row TYLER barcoded and
+  // confirmed himself is HIS even when an admin also pressed marked-done on
+  // their device — taking his Clear 503 away because of somebody else's press
+  // would strand a package he filed, on the surface that feeds the pallet
+  // handoff. Only a row he has no local filing for is read-only here.
   if (isRemoteFiledOnly(item)) { attachRemoteFiledTag(tr); return tr; }
   const clear = document.createElement('button');
   clear.className = 'btn-park-mini';
@@ -9542,23 +9618,68 @@ function click503Toggle(item) {
 // toast all say it files the row, which is exactly what membership in that
 // store has always meant.
 //
-// ONE LABEL, NOT THE WHOLE STOP, and that is a decision rather than an
-// oversight. The commit above dock-flexes 503 across the stop, so a sibling at
-// the same unit now reads 503 too — and it STAYS in the working list, tagged,
-// exactly the way a typed 503 leaves it today (#944 decision 1). Filing the
-// siblings would hand off packages the supervisor never clicked; the clicked
-// package is the one he is holding, and the siblings keep the handoff path they
-// have had since #944.
+// THE WHOLE STOP, NOT ONE LABEL (#1075). #1036 filed only the clicked package
+// and stated the opposite of this paragraph — "filing the siblings would hand
+// off packages the supervisor never clicked" — so the reversal is recorded here
+// rather than quietly swapped in.
 //
-// SO THE TOAST HAS TO SAY THE STOP WAS SPLIT (review finding 1 on #1048). The
-// behaviour above is right and stays; what was wrong was the SILENCE. Three
-// writes to the one #goesto-note pill land in a single synchronous pass here —
-// the commit's routine spread note, then announce503Filing's counted "N
-// packages at this stop, tagged and still in your list", then this function's
-// own toast — and the last one wins. That erased the only on-screen statement
-// that a dock-flexed stop had just been divided between the 503s tab (the
-// pallet handoff, copyAll503) and the working lane. The sibling count now rides
-// in the click's own toast instead, so nothing has to survive the overwrite.
+// WHAT CHANGED IS THE UNIT OF THE JUDGEMENT. A 503 is a statement about a BAD
+// ADDRESS, and dock flex exists precisely because a bad address applies to
+// every package at that stop. "He never clicked those packages" is equally true
+// of the keystroke, and the keystroke files nothing; what the BUTTON means is
+// "this address is bad, all of it goes to the pallet". Leaving the stop-mates
+// behind produced exactly the leftovers #1072 was raised to remove — one row
+// moving to the 503s tab while two sat in Needs Manual Review still reading
+// 503, on Tyler's screen and the admin's alike. Tyler, 2026-09-23, asked
+// whether a 503 on one package of a stop sends the whole stop to the pallet:
+// it does.
+//
+// THE POPULATION IS BOUNDED BY WHAT THE COMMIT ACTUALLY WROTE, never by the
+// stop as the address pairs imagine it, and that is the safety property this
+// function rests on. `changed` is the commit's own answer, and ActualArea's
+// sibling loop pushes a label onto it ONLY on the line after it writes one
+// (lib/actual-area.js — `next[l] = entryFor({ auto: true }); changed.push(l);`).
+// A row rule 1 skipped, a row `setEarly`'s oursToTouch guard refused, a row
+// already reading 503: none of them is in the set, so none can be filed.
+//
+// THE `is503Label(l)` AND `!isFiled` CLAUSES BELOW ARE THEREFORE REDUNDANT
+// TODAY, and that is stated rather than dressed up as enforcement. A mutation
+// battery on #1075 removed each of them and the suite stayed GREEN, which is
+// the honest description of a defensive clause: it guards a contract that
+// currently cannot be violated. They are KEPT because they are one predicate
+// call each and because `changed`'s contract is a neighbouring module's to
+// change — but nothing here should be read as "this is what stops a refused
+// write being filed". What stops that is `changed` itself.
+//
+// ONE EDGE THIS LEAVES, AND IT IS ALMOST UNREACHABLE (#1075). A stop-mate
+// Tyler ALREADY TYPED 503 into by hand is `typed`, so rule 1 skips it, so it
+// is not in `changed`, so this click does not file it. Almost unreachable
+// because the moment ANY package at a stop reads 503 the dock flex has given
+// every row at that stop the same value, and build503Button labels itself off
+// `is503Area` — so every button on that stop reads "Clear 503" and the only
+// gesture available is clickClear503, not this function. The one way in is a
+// stop whose rows hold DIFFERENT hand-typed values (a belt on one, 503 on
+// another), where rule 1 has kept them apart. Left as it is deliberately: the
+// alternative is a click that overwrites a supervisor's own keystroke, which
+// is a worse trade than one row staying in the lane.
+//
+// A HIDDEN STOP-MATE IS NOW FILED, and that is the deliberate half. An
+// unflagged work area folded out of the lane goes to the pallet with the rest
+// of its address — which is #984's defect shape turned into an intended
+// behaviour. What makes it safe rather than reckless: the address is the unit,
+// the toast states the count out loud, and ONE Clear 503 on any package of the
+// stop takes the whole stop back (commit503 → unfileClearedHandedOff503, #944,
+// which already walks the same dock-flexed set).
+//
+// SO THE TOAST STILL HAS TO SAY THE STOP WAS SPLIT — except it now says the
+// stop was KEPT TOGETHER (review finding 1 on #1048, inverted with the
+// behaviour). The reason the clause lives inside this one string is unchanged:
+// three writes to the single #goesto-note pill land in one synchronous pass
+// here — the commit's routine spread note, then announce503Filing's counted
+// line, then this function's own toast — and the last one wins. A second
+// flashGoesToNote call would simply overwrite the first. One pill, one
+// sentence, and the clause is ABSENT on a one-package stop, so its presence
+// always means the stop really was more than one package.
 function clickFile503(label, commitFn) {
   // THE COMMIT NOW ANSWERS WHICH ROWS IT TOUCHED. Both commitGoesTo and
   // commitPostSortGoesTo return their result.changed for this one caller; every
@@ -9579,13 +9700,35 @@ function clickFile503(label, commitFn) {
   // package that had just disappeared. The flag itself is therefore the gate:
   // no 503, no filing, and the commit's own refusal is left to speak.
   if (!is503Label(label)) return;
-  // THE SIBLINGS THIS CLICK TAGGED AND DID NOT FILE, counted BEFORE the filing
-  // so the store it reads is the one the commit left. Same population
-  // announce503Filing counts — rows this write moved INTO 503 — minus the
-  // clicked one, minus anything already handed off, because "still in your
-  // list" has to be true of every package the number claims.
-  const stillInLane = (Array.isArray(changed) ? changed : []).filter(
-    l => l !== label && is503Label(l) && !IbnoFiled.isFiled(filedStore, l));
+  // THE STOP-MATES THIS CLICK TAGGED, read BEFORE the filing so the store it
+  // asks is the one the commit left. Same population announce503Filing counts —
+  // rows this write moved INTO 503 — minus the clicked one, minus anything
+  // ALREADY handed off, which is now an exclusion from the WRITE as well as
+  // from the count: re-filing a row that is already filed would restamp
+  // somebody else's handoff with this click's.
+  //
+  // A ROW ALREADY OWNED BY ANOTHER LIFECYCLE STATE IS NOT A STOP-MATE (#1073
+  // review F1). `changed` comes from ActualArea.set's dock flex over
+  // manualAddressPairs(), which is deliberately NOT filtered for set-aside rows
+  // (see lib/actual-area.js siblings()), so a PARKED package at the same exact
+  // stop is in it. Filing that row would pull it out of ⏳ Parked into the 503s
+  // tab — and onto the pallet list — although the supervisor parked it on
+  // purpose and never clicked it. Same three questions stationPaneOwnedElsewhere
+  // asks of a label, written out here so this call site reads on its own:
+  //   * parked here       -> IbnoParked.isParked, the idiom setAside503Predicate
+  //                          and remoteAssignedRows already use on this PR;
+  //   * filed here        -> IbnoFiled.isFiled, the restamp guard above;
+  //   * filed by the other desk -> isRemoteFiledAway, ADR 0022's predicate for
+  //                          "has this row left my working list on their
+  //                          marked-done" — re-filing it here would claim their
+  //                          finished handoff under this device's name.
+  // A row the OTHER desk merely parked is still Tyler's to work (#990 A1), so
+  // remoteParkedBy is deliberately not consulted.
+  const stopMates = (Array.isArray(changed) ? changed : []).filter(
+    l => l !== label && is503Label(l)
+      && !IbnoParked.isParked(parkedStore, l)
+      && !IbnoFiled.isFiled(filedStore, l)
+      && !isRemoteFiledAway({ label: l }));
   // THE ADVANCE COPY, COMPUTED AND ISSUED SYNCHRONOUSLY, BEFORE the row is torn
   // out (#966). Park already copies the street of the row it lands on; this
   // click now has the thing #966 needs and the keystroke does not — a row that
@@ -9594,30 +9737,40 @@ function clickFile503(label, commitFn) {
   // reads the landing row off the DOM as it stands. It self-guards on "the
   // cursor did not move", so filing a row Tyler is NOT parked on copies nothing
   // and never replaces the clipboard under him.
-  copyWorkAdvanceStreet([label]);
+  //
+  // EVERY ROW THIS CLICK FILES IS LEAVING, not only the clicked one (#1073
+  // review F2). workAdvanceLanding builds its `gone` set from this argument, so
+  // passing [label] alone let the landing — and the clipboard — fall on a
+  // stop-mate markFiledBatch tears out on the very next line. stopMates is
+  // computed above for exactly this reason: it must exist before this call.
+  copyWorkAdvanceStreet([label].concat(stopMates));
   // The advance itself is markFiledBatch's own restoreWorkCursor: the filed
   // label is the cursor's, so it passes '' and the SLOT is kept, landing the
   // cursor on whatever row took this one's place. The rule Park already uses.
-  markFiledBatch([label]);
+  // THE CLICKED PACKAGE FIRST, then its stop-mates (#1075). The order is not
+  // cosmetic: markFiledBatch passes the list to restoreWorkCursor, which looks
+  // the cursor's label up in it, and the clicked row is the one the cursor is
+  // actually on.
+  markFiledBatch([label].concat(stopMates));
   // LAST WRITE WINS on the single #goesto-note pill, deliberately. commitFn has
   // just spoken announce503Filing's "tagged and still in your list; barcode
   // them and confirm" — true of the keystroke, false of this click, because the
-  // row has already gone. Both writes land in ONE synchronous pass, so only
+  // rows have already gone. Both writes land in ONE synchronous pass, so only
   // this text is ever painted, and flashGoesToNote's textContent write removes
   // that message's now-meaningless Undo along with it. A dock-flex DRIFT
   // WARNING still outranks this note, which is the right way round: a package
   // about to be walked to the wrong belt beats an affordance.
   //
-  // WHICH IS WHY THE SPLIT-STOP CLAUSE IS PART OF THIS STRING and not a second
+  // WHICH IS WHY THE STOP CLAUSE IS PART OF THIS STRING and not a second
   // flashGoesToNote call: a second call would simply overwrite the first, the
   // same way this one overwrote announce503Filing's. One pill, one sentence.
   // The clause is ABSENT on an ordinary single-package stop, so its presence
-  // always means the stop really was divided.
-  const n = stillInLane.length;
+  // always means the stop really was more than one package — and the COUNT is
+  // the whole point of saying it, because those packages have just left the
+  // list without being clicked and the pallet list now carries them.
+  const n = stopMates.length;
   flashGoesToNote('Filed 503 · now in the 503s tab · Clear 503 to bring it back' +
-    (n ? ' · ' + n + ' other package' + (n === 1 ? ' at this stop is' : 's at this stop are') +
-      ' tagged 503 and still in your list — barcode ' + (n === 1 ? 'it' : 'them') +
-      ' and confirm' : ''));
+    (n ? ' · ' + n + ' other package' + (n === 1 ? '' : 's') + ' at this stop went with it' : ''));
 }
 
 // clickClear503(label, commitFn) -> the other half of the round trip (#1036
@@ -11002,7 +11155,7 @@ function buildParkedRow(item, badges) {
   tr.innerHTML =
     '<td class="mono"><span class="label-copy" title="Click to copy">' + ToolHelpers.escapeHtml(item.label) + '</span>' +
       carriedParkMarker(item.label) +
-      '<span class="row-chips">' + FTrack.ftrackLink(item.label) + setAsideBarcodeChip(item) + streetChip(item) + eopsChip(item) + '</span></td>' +
+      '<span class="row-chips">' + FTrack.ftrackLink(item.label) + addressChip(item) + setAsideBarcodeChip(item) + streetChip(item) + eopsChip(item) + '</span></td>' +
     '<td class="cat-text">' + ToolHelpers.escapeHtml(item.category || '\u2014') + '</td>' +
     '<td class="cat-text">' + ToolHelpers.escapeHtml(item.ibWork || '\u2014') + '</td>' +
     '<td>' + recipientCellHtml(item.firm, item.address) + '</td>' +
@@ -11836,12 +11989,17 @@ const MERGED_VIEW_CTX = {
   isSetAside: (item) => IbnoParked.isParked(parkedStore, item && item.label) || isSetAside503(item)
     || isStationRow(item)
     || IbnoFiled.isFiled(filedStore, item && item.label)
-  // #990 NARROWS THAT REVERSAL BY AREA. Only a NORMAL area marked done is
-  // finished work that leaves the list; a 503 they marked done stays in Needs
-  // Manual Review with a note and MUST still be counted as open work (decision
-  // A2 — "it does not count as done"), and their PARK reaches nothing here at
-  // all. isRemoteFiledAway is the predicate that answers this consumer's
-  // question; isRemoteFiled answers a different one and is no longer read here.
+  // #1072 RETURNED THIS TO #971's SHAPE. A row the other desk MARKED DONE has
+  // left the working list whatever its area: a normal area goes to Work area
+  // assigned and a 503 goes to the 503s tab, both attributed and read-only, so
+  // neither may be counted as open work here. (#990 decision A2 had held a
+  // marked-done 503 back in Needs Manual Review as open work; #1072 reversed
+  // that, and isRemoteFiledAway now answers true for it.) A 503 they only TYPED
+  // publishes no filing and stays workable, and their PARK reaches nothing here
+  // at all (#990 A1, unchanged). isRemoteFiledAway is the predicate that names
+  // this consumer's question, even though its answer now coincides with
+  // isRemoteFiled's — see the note above isRemoteFiledAway for why the two
+  // names are kept apart.
     || isRemoteFiledAway(item),
   // #735: arrived since the previous drop of this sort day. Read through the
   // same one predicate the row badge reads, so the chip's count and the marks
@@ -11905,9 +12063,11 @@ function workingLaneItems(key) {
     // to get it here and nothing local has to be unwritten to send it back —
     // isRemoteFiled is derived live from their file, so it returns to this lane
     // by itself the moment their file stops carrying it (item 2's return path).
-    // #990: isRemoteFiledAway, so a 503 they marked done STAYS in this lane
-    // (with a note, and in the progress denominator) while a normal area still
-    // leaves. The predicate carries the split; this filter does not respell it.
+    // #1072: ANY marked-done leaves this lane now, 503 included — the 503
+    // button is the handoff gesture since #1036, so their finished 503 is
+    // finished work and lands in the 503s tab rather than sitting here with a
+    // note. A 503 they merely TYPED publishes no filing and stays. The
+    // predicate carries that; this filter does not respell it.
     .filter(it => !isRemoteFiledAway(it));
 }
 // The same exclusion for the early (Post Sort) lane (#698 review finding 2):
@@ -11932,7 +12092,7 @@ function workingEarlyLaneItems(key) {
     // to get it here and nothing local has to be unwritten to send it back —
     // isRemoteFiled is derived live from their file, so it returns to this lane
     // by itself the moment their file stops carrying it (item 2's return path).
-    // #990: isRemoteFiledAway, same split as the full-report lane above.
+    // #1072: isRemoteFiledAway, same rule as the full-report lane above.
     .filter(it => !isRemoteFiledAway(it));
 }
 
@@ -13036,7 +13196,7 @@ function buildAutoRow(item, idx) {
     codeCellHtml = '<span class="code-pill">' + ToolHelpers.escapeHtml(code) + '</span>';
   }
   tr.innerHTML =
-    '<td class="mono"><span class="expand-indicator">&#9654;</span><span class="label-copy" title="Click to copy">' + ToolHelpers.escapeHtml(label) + '</span>' + recurringPill(label) + FTrack.ftrackLink(label) + barcodeChip(item) + streetChip(item) + eopsChip(item) + '</td>' +
+    '<td class="mono"><span class="expand-indicator">&#9654;</span><span class="label-copy" title="Click to copy">' + ToolHelpers.escapeHtml(label) + '</span>' + recurringPill(label) + FTrack.ftrackLink(label) + addressChip(item) + barcodeChip(item) + streetChip(item) + eopsChip(item) + '</td>' +
     '<td>' + codeCellHtml + '</td>' +
     '<td class="cat-text">' + ToolHelpers.escapeHtml(category) + '</td>' +
     '<td class="cat-text">' + ToolHelpers.escapeHtml(inboundDate || '—') + '</td>' +
@@ -15210,11 +15370,15 @@ function assignedRows() {
 function remoteAssignedRows() {
   const mine = new Set(assignedRows().map(it => it && it.label));
   return filedSourceItems().filter(it =>
-    // #990: isRemoteFiledAway carries the `!is503Area` half now, so the tab
-    // rule and the lifecycle predicate cannot drift apart on which rows a 503
-    // marked-done reaches. The already-inbound-503 exclusion stays its own
-    // clause: it is a different fact about the report, not about their file.
-    isRemoteFiledAway(it) && !mine.has(it && it.label) &&
+    // #1072 TAKES THE `!is503Area` CLAUSE BACK FROM isRemoteFiledAway. #990 had
+    // moved it into that predicate; the effect was that every working-lane
+    // filter inherited a rule that only this tab needed, and a 503 they finished
+    // stayed in Tyler's Needs Manual Review as a result. The exclusion belongs
+    // here, where the question is "does THIS TAB draw it" — answered NO, because
+    // the 503s tab claims it (#944 decision 2, one package is never in two
+    // tabs). The already-inbound-503 exclusion stays its own clause: it is a
+    // different fact about the report, not about their file.
+    isRemoteFiledAway(it) && !is503Area(it) && !mine.has(it && it.label) &&
     !IbnoParked.isParked(parkedStore, it && it.label) &&
     !isInbound503(it));
 }
@@ -16458,19 +16622,17 @@ function deskStateNotesFor(label) {
   if (!label) return [];
   const item = { label: label };
   const out = [];
-  // The 503 half asks isRemoteFiled503, NOT isRemoteFiled: a NORMAL area they
-  // marked done has already left this list for Work area assigned, so a note
-  // about it here would be drawn on a row that is not here.
-  if (isRemoteFiled503(item)) {
-    const by = remoteFiledBy(label);
-    if (by) {
-      out.push({
-        state: '503', by: by, text: '503 · ' + by,
-        title: by + ' marked this row done as a 503 on their device. It stays in your list '
-          + 'and stays yours to work — the note goes away by itself if their file stops carrying it.',
-      });
-    }
-  }
+  // #1072 REMOVES THE 503 NOTE, and removing it is the ticket rather than a
+  // tidy-up. It existed to describe a row that STAYED here after another desk
+  // marked it done as a 503; since #1072 that row auto-moves into the 503s tab,
+  // credited to them by attachRemoteFiledTag, so the note had nothing left to
+  // draw on. A note whose row is never in the list is worse than no note: it is
+  // a surface nobody can see failing.
+  //
+  // THE PARK NOTE IS UNTOUCHED and is now the only note this function makes.
+  // Park did not move on the answer path and must not — it is still pure
+  // display, still never isSetAside, still never Tyler's own parkedStore (#990
+  // decision A1, and lib/desk-state.js's header). A NOTE IS DISPLAY.
   if (isRemoteParked(item)) {
     const by = remoteParkedBy(label);
     if (by) {
@@ -20606,6 +20768,64 @@ function streetChip(item) {
     ToolHelpers.escapeHtml(street) + '" onclick="copyStreetChip(this)">&#9106; St</button>';
 }
 
+// ─── THE ADDRESS CHIP: FTrack's delivery page (Tyler, 2026-10-26) ─────────────
+//
+// "one is the delivery page that shows the address for them for the blank ones
+// ... that can help us look at those with one less click. i want that one to
+// be some kind of setting i can enable ... since i want the admins to look at
+// the ftrack history but sometimes i just need to quickly do it."
+//
+// So it renders only when ALL THREE hold:
+//   1. this is a supervisor device (DeskRoles), asked at render time like every
+//      other supervisor gate, so a rename takes effect on the next render;
+//   2. the toggle in Settings is on (off by default, and on this device only);
+//   3. the row has NO ADDRESS by IbnoMergedView.hasAddress, the same predicate
+//      the Hide no-address chip counts, so "the blank ones" means one thing.
+// It sits BESIDE the FTrack chip, never in place of it: the history page stays
+// one click away on the same row.
+const FTRACK_ADDRESS_CHIP_KEY = 'ibno_ftrack_address_chip';
+
+function ftrackAddressChipOn() {
+  return DeskRoles.isSupervisorDevice(deviceName) &&
+    toolStorage.get(FTRACK_ADDRESS_CHIP_KEY, false) === true;
+}
+
+function addressChip(item) {
+  if (!item || !ftrackAddressChipOn()) return '';
+  if (IbnoMergedView.hasAddress(item, MERGED_VIEW_CTX)) return '';
+  return FTrack.ftrackDeliveryLink(item.label);
+}
+
+// The toggle's own section is hidden on an admin device, and the writer below
+// refuses there too: a hidden checkbox is an affordance, the refusal is the
+// behaviour (the station config editor's rule).
+function fillFtrackAddressSettings() {
+  const box = document.getElementById('ftrack-address-settings');
+  if (!box) return;
+  const allowed = DeskRoles.isSupervisorDevice(deviceName);
+  box.style.display = allowed ? '' : 'none';
+  const cb = document.getElementById('ftrack-address-toggle');
+  if (cb) cb.checked = allowed && ftrackAddressChipOn();
+}
+
+// Saved on the click, no Save button: it changes only what a chip links to on
+// this screen, so there is nothing to confirm. Off REMOVES the key rather than
+// storing false, so an unticked device carries nothing. Then a repaint, work
+// cursor carried across it. renderEarlyLane() redraws both lanes AND the Set
+// aside strip (it calls renderSetAside itself), so Parked and 503s come with
+// it. It does not reach Ready to Enter, and the main report has no-address
+// rows there too (4 on the inbox export, PR #1089 review), hence the second call.
+function setFtrackAddressChip(on) {
+  if (!DeskRoles.isSupervisorDevice(deviceName)) { fillFtrackAddressSettings(); return; }
+  if (on) toolStorage.set(FTRACK_ADDRESS_CHIP_KEY, true);
+  else toolStorage.remove(FTRACK_ADDRESS_CHIP_KEY);
+  fillFtrackAddressSettings();
+  const cursorLabel = workCursorLabel();
+  renderEarlyLane();
+  renderAutoSectionRows();
+  restoreWorkCursor(cursorLabel);
+}
+
 function copyStreetChip(btn) {
   const street = btn.dataset.street || '';
   if (!street) return;
@@ -22129,7 +22349,7 @@ function buildManualRow(item, bucket) {
       // "Barcode selected" prints through. A row still awaiting the lookup, or
       // holding a conflict, shows no chip — and its state is already named by
       // the tag next to the label (postSortBarcodeTagHtml).
-      '<span class="row-chips">' + recurringPill(label) + FTrack.ftrackLink(label) +
+      '<span class="row-chips">' + recurringPill(label) + FTrack.ftrackLink(label) + addressChip(item) +
         (isEarly ? earlyBarcodeChip(item) : barcodeChip(item)) + streetChip(item) + eopsChip(item) + '</span></td>' +
     '<td class="cat-text">' + categoryHtml + '</td>' +
     '<td class="cat-text">' + ToolHelpers.escapeHtml(inboundDate || '\u2014') + '</td>' +
@@ -22575,8 +22795,8 @@ function codedItemsForLane(laneKey) {
     // #971: and a coded row the other desk has marked done, for the third time
     // and the same reason. These render from resolvedItems, which neither
     // working-lane filter above ever sees.
-    // #990: isRemoteFiledAway, same split again — a coded row they marked done
-    // with a 503 stays drawn in the lane, dimmed, with its Goes To box live.
+    // #1072: isRemoteFiledAway, same rule again — a coded row they marked done
+    // leaves the lane whatever area it carries, 503 included.
     .filter(it => !isRemoteFiledAway(it));
 }
 
