@@ -606,6 +606,315 @@
       "commit": null,
       "shippedAt": null,
       "order": 25
+    },
+    {
+      "id": "pr-1101",
+      "pr": 1101,
+      "issue": 1091,
+      "tool": "writeups",
+      "title": "New Writeups page drafts a Late Notice of Deficiency",
+      "summary": "A new Writeups page builds the Workday text for a Late. Pick the admin, type each Late from MyTime, tick the ones the writeup covers, and copy the Discipline Details and Next Steps boxes into Workday.",
+      "watchFor": [
+        "Only Lates and the Notice of Deficiency so far. History, Final Notice, call-offs and the other kinds come in the next tickets.",
+        "Everything stays in this browser. Nothing is sent anywhere.",
+        "It has no Command Center tile yet. That comes with the deploy ticket."
+      ],
+      "howToSee": [
+        "Open the Writeups page from the repo and add an admin",
+        "Add a Late with its date, scheduled start and clock-in",
+        "Tick it and read the two boxes on the right",
+        "Click Copy on a box and paste it somewhere"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1102",
+      "pr": 1102,
+      "issue": 1093,
+      "tool": "writeups",
+      "title": "Writeups drafts Call-offs and NCNS, shows the 30-day pattern, and adds a habitual toggle",
+      "summary": "The Writeups page now drafts Call-offs and no call no shows as well as Lates, and shows the last 30 days as counts against the house standard. A Document as habitual toggle switches the wording, and a note beside it says when the ticked incidents meet the standard.",
+      "watchFor": [
+        "A Call-off ticked as Protected Sick Time is never put in the draft and never counted. The page says so under the toggle.",
+        "The habitual toggle starts off and goes back off whenever you tick or untick an incident. The note beside it never turns it on.",
+        "Only one Late, Call-off or NCNS is allowed per admin per day. Adding a second of any kind is refused."
+      ],
+      "howToSee": [
+        "Open the Writeups page and pick an admin",
+        "Add a Call-off with Protected Sick Time ticked, then tick it in the list and see the draft stay empty",
+        "Add three Lates in the last 30 days, tick them, and read the note beside Document as habitual",
+        "Turn the toggle on and read \"habitual tardiness\" in Discipline Details"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1103",
+      "pr": 1103,
+      "issue": 1092,
+      "tool": "writeups",
+      "title": "Writeups keeps each admin's writeup history and suggests Notice or Final Notice",
+      "summary": "The Writeups page now keeps a history of each admin's writeups on this device and suggests the next document from it, with a one-line reason. Drafts list prior discipline from the last 12 months, Related Disciplinary Actions shows the most recent writeup, and Final Notice can be drafted.",
+      "watchFor": [
+        "A writeup goes into history only when you press Save to history. Copying a box never saves it.",
+        "With a Final Notice in the last 12 months the page names termination as the next step under policy and picks no document type. You can still pick one.",
+        "Documented Discussions are listed as prior discipline but are not counted as Notices. A writeup exactly 12 months old no longer counts, so check that edge against Workday.",
+        "Save to history is refused when the ticked incidents are already in a saved writeup, under any type. To change the type, delete the saved writeup, then save again."
+      ],
+      "howToSee": [
+        "Open the Writeups page and pick an admin with no saved writeups, and read the empty history message",
+        "Add a past Notice of Deficiency from Workday and see the suggestion change to the 2nd notice",
+        "Tick a Late, press Save to history, and see the suggestion move to Final Notice",
+        "Read the Prior discipline sentence at the end of Discipline Details"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1104",
+      "pr": 1104,
+      "issue": 1096,
+      "tool": "writeups",
+      "title": "Writeups boxes can be edited by hand, and the page checks the citation and the dates",
+      "summary": "You can now type in the draft boxes, and an edited box keeps your text until you press Reset on it. The check line warns about HMR-057, a date that is not a ticked incident, or Next Steps that do not fit the type, and Replace swaps in POLICY-010 while keeping every date and fact.",
+      "watchFor": [
+        "An edited box no longer follows the ticked incidents. Press Reset on that box to rebuild it.",
+        "Hand edits are not saved. A reload, switching admin or Save to history throws them away.",
+        "In a Prior discipline sentence only the past writeup's own issued date is skipped. Every other date must be a ticked incident, and every ticked incident's date must be in the text.",
+        "The warnings never stop Copy or Save to history. Read them before you paste."
+      ],
+      "howToSee": [
+        "Open the Writeups page, tick a Late, and type in Discipline Details",
+        "Tick another Late and see your text stay, then press Reset",
+        "Paste a sentence citing hmr-057 and press Replace with the POLICY-010 sentence",
+        "Change a date in the box and read the amber date warning"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1105",
+      "pr": 1105,
+      "issue": 1094,
+      "tool": "writeups",
+      "title": "Writeups drafts a Documented Discussion, including a pattern of sick early departures",
+      "summary": "Documented Discussion is now a document type, with its four Workday boxes and no Rating, for a Late, a Call-off, an NCNS or two or more sick early departures. A sick one states only the dates, times and time missed, and medical words in any writeup warn in amber.",
+      "watchFor": [
+        "A sick early departure is never counted toward a pattern and never goes into a Notice or Final Notice. Ticked under a Notice it is left out with a message.",
+        "Sick early departures draft only into a Documented Discussion, two or more and nothing else ticked. A saved one is never prior discipline on another writeup.",
+        "Words like doctor, ER or appointment warn on any writeup. Words like because or family warn only when sick time is ticked. Appointment packages never warn.",
+        "Previous Counseling Given lists writeups from the last 12 months. With none it stays empty."
+      ],
+      "howToSee": [
+        "Open the Writeups page, tick a Late, and pick Documented Discussion",
+        "Add two sick early departures with a scheduled end and a clock-out, then tick both",
+        "Pick Documented Discussion and read the facts-only text",
+        "Type doctor's note into a box and read the amber warning"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1107",
+      "pr": 1107,
+      "issue": 1095,
+      "tool": "writeups",
+      "title": "Writeups drafts a performance writeup from an instruction and the misses",
+      "summary": "The Writeups page has a Performance kind. Add the Instruction and a Miss for each time it was not done, tick them, and the page drafts a Notice, Final Notice or Documented Discussion with Reason Performance, still citing POLICY-010.",
+      "watchFor": [
+        "Performance entries draft only on their own, with one Instruction and at least one Miss. Ticked beside a Late, Call-off or NCNS they are left out, and the page says so.",
+        "Type each Miss as the sentence it should read, such as Sam did not scan the packages. The page adds On and the date.",
+        "The draft never says insubordination. If the word is typed into an entry or a box, an amber warning names the box.",
+        "Next Steps says the admin is expected to do the instruction. Add every shift by hand if it is a standing one. Whether to cite POLICY-031 instead is still open with HR."
+      ],
+      "howToSee": [
+        "Open the Writeups page, pick an admin, and choose Performance in the incident kind",
+        "Add an Instruction, then two Misses on later dates",
+        "Tick all three and read Discipline Details and Next Steps",
+        "Pick Documented Discussion and see the Rating row go away"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1108",
+      "pr": 1108,
+      "issue": 1097,
+      "tool": "writeups",
+      "title": "Writeups can export and import its history as a backup file",
+      "summary": "The Writeups page has a Backup panel. Export history saves every admin, incident and writeup to one dated file, and Import history loads one back, and the page nudges an export after each saved writeup.",
+      "watchFor": [
+        "Import replaces everything on this device. Nothing is merged, so anything not in the file is gone. The page shows what the file holds and waits for you to confirm.",
+        "A file that is damaged, from another tool, from a newer version, or holds a writeup dated in the future is refused. Nothing on the device changes.",
+        "Export warns you if the file it saved would be refused on import, such as a Late and a Call-off on one day. Fix the record and export again.",
+        "The file holds real names and incidents. Keep it off shared drives and out of the repo."
+      ],
+      "howToSee": [
+        "Open the Writeups page, add an admin, and add a past writeup under Writeup history",
+        "Read the amber note that history changed since your last export, then press Export history",
+        "See the note clear and Last exported show today, and find the dated backup file in Downloads",
+        "Press Import history, choose that file, and read the counts and export date before confirming"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1109",
+      "pr": 1109,
+      "issue": 1098,
+      "tool": "writeups",
+      "title": "Writeups has a tile on the Command Center and ships in the hosted build",
+      "summary": "The Command Center has a Writeups tile that opens the Writeups page. The hosted build now carries the page, without the admin roster, so on the hosted page you add your admins by hand once.",
+      "watchFor": [
+        "The hosted page starts with no admins. Add them once and they stay in this browser.",
+        "The page has no names baked in on the hosted build. Your admins, incidents and history never leave your browser.",
+        "The hosted build only changes when it is deployed. Merging alone does not put the tile on the hosted site."
+      ],
+      "howToSee": [
+        "Open the Command Center and find the Writeups tile next to NVS Builder",
+        "Click it and the Writeups page opens",
+        "On the hosted site, the admin list starts empty with a message to add one"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1110",
+      "pr": 1110,
+      "issue": 1106,
+      "tool": "writeups",
+      "title": "Writeups warns on more everyday medical spellings",
+      "summary": "The medical-words warning now also catches spellings like ob-gyn, ER visit, psychiatrist, chiropractor, ultrasound, diabetes, asthma, blood pressure, sore throat, quarantine, PCP and Rx.",
+      "watchFor": [
+        "Cramps, contractions and specialist warn only when sick time is ticked, so an ordinary Late or NCNS writeup stays quiet.",
+        "PCP and Rx warn only in capitals."
+      ],
+      "howToSee": [
+        "Open the Writeups page and tick a Late",
+        "Type ob-gyn into Discipline Details and read the amber warning"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1113",
+      "pr": 1113,
+      "issue": 1112,
+      "tool": "writeups",
+      "title": "Writeups adds the admin's work schedule to absence writeups",
+      "summary": "Each admin on the Writeups page can have scheduled days, checked once on the admin panel. Call-off, NCNS and sick pattern drafts then say \"Sam's work schedule is Sun-Thu.\" right after the incident facts, and an amber warning appears when a checked absence falls on a day that is not scheduled.",
+      "watchFor": [
+        "Scheduled days are optional and saved in this browser only. With none set, the draft has no schedule line and a quiet note says so. It is not a warning.",
+        "Late and Performance drafts never get the schedule line.",
+        "The off-schedule warning names the date and weekday. It never blocks Copy, so check the date and the days before pasting.",
+        "Export history keeps each admin's scheduled days. Backups made before this change still import."
+      ],
+      "howToSee": [
+        "Open the Writeups page, pick an admin, and check the days they work on the admin panel",
+        "Add an NCNS, tick it, and read the work schedule sentence in Discipline Details",
+        "Add an NCNS on a day that is not checked and read the amber warning",
+        "Clear the days and see the schedule sentence go away and the quiet note appear"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1119",
+      "pr": 1119,
+      "issue": 1116,
+      "tool": "writeups",
+      "title": "Writeups gets a Settings panel for wording and word lists",
+      "summary": "A Settings panel at the bottom of the Writeups page lets you change the attendance expectation, the attendance and performance consequences, the Final Notice line and the work schedule line. You can also add medical words, station phrases that should not warn and Workday Reason values, raise the sick-pattern minimum, and keep your First name or \"Admin\" choice between visits.",
+      "watchFor": [
+        "A sentence that cites HMR-057 or policy 057, holds a medical word, or drops {name} or {days} is refused with a message, and nothing is saved.",
+        "Medical words can only be added, and a station phrase cannot hold any medical or reason word, like \"doctor office\" or \"sick time\".",
+        "The attendance consequence must keep \"30 days\", and the sick-pattern minimum never goes below 2.",
+        "Unreadable saved Settings never block Export, and Reset settings puts the defaults back."
+      ],
+      "howToSee": [
+        "Open the Writeups page and open Settings at the bottom of the left column",
+        "Change the attendance consequence, press Save, and tick an incident to see it in Next Steps",
+        "Press Reset to default and see the original sentence come back",
+        "Type HMR-057 into a sentence, press Save, and read the refusal"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1118",
+      "pr": 1118,
+      "issue": 1117,
+      "tool": "people",
+      "title": "One People list, edited in the browser, used by the Time-Off Log and Address Catcher",
+      "summary": "A new People page lists your admins and staff, with a People tile on the Command Center. Add, rename or remove someone there and the Time-Off Log's Admin suggestions and Address Catcher's \"Made by\" line follow.",
+      "watchFor": [
+        "The list stays in this browser. Every tool on the same site reads it, but another device, or the hosted site at first, starts empty until you add people or use Import.",
+        "Each tool keeps its built-in list for what the People list lacks: the Time-Off Log until someone is an Admin, Address Catcher until someone has an employee ID.",
+        "Renaming an admin splits their Time-Off history, because entries are stored under the old name. The People page warns and asks you to confirm.",
+        "Mark admins as Admin, or they do not show in the Time-Off Log. A list that cannot be read is never saved over: replace it with a backup."
+      ],
+      "howToSee": [
+        "Open the Command Center and click the People tile",
+        "Add a person, mark them Admin, and save",
+        "Open the Time-Off Log and type in the Admin field: the new name is suggested",
+        "Rename or remove the person on the People page and see the suggestion change"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1120",
+      "pr": 1120,
+      "issue": 1117,
+      "tool": "writeups",
+      "title": "Writeups page seeds and suggests admins from the People list",
+      "summary": "On a new device the Writeups admin list starts from the admins on your People list. Admins you add to People later show as one-click Add buttons under Add an admin, with an Edit people link.",
+      "watchFor": [
+        "Nothing is added on its own after the first load. Click Add to bring someone in.",
+        "If the People list has no admins, the Writeups page starts from its built-in list as before.",
+        "Names already on the Writeups list keep their history. Nothing is renamed or removed."
+      ],
+      "howToSee": [
+        "Open the People page and mark a new person as Admin",
+        "Open the Writeups page and look under Add an admin",
+        "Click the Add button for that person and see them in the Who is this writeup for list"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1123",
+      "pr": 1123,
+      "issue": 1122,
+      "tool": "command-center",
+      "title": "Hosted tools show their app icon and a tab icon",
+      "summary": "The hosted Command Center now ships its app icons, so the install and home screen icons show up instead of a blank tile. Every tool tab also shows its icon in the browser tab.",
+      "watchFor": [
+        "Only the hosted site changes. The next Command Center deploy is what puts the icons online.",
+        "A phone that already installed the app may keep the old blank icon until it is added again."
+      ],
+      "howToSee": [
+        "Open the hosted Command Center in a browser",
+        "Look at the browser tab and see the station icon",
+        "Open any tool from the Command Center and see the same icon on its tab"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
     }
   ],
   "queueIssue": 1025
