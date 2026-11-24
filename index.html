@@ -2270,6 +2270,46 @@
        out under the toolbar. Absent when quiet (#611), never a "0 not fixed". */
     .not-fixed-note { padding: 8px 14px; }
 
+    /* ── THE MISLOADS PANE (#1078, #1079, #1081) ──────────────────────────────
+       THEME TOKENS ONLY, no hardcoded colour: the theme-contrast budget may
+       only shrink, and theme.css redefines every token below for dark mode, so
+       there is no separate dark rule to forget. The helper text uses
+       --text-muted, not the .filter-note default (--text-faint measures 2.85:1
+       in the light theme); the pane's own count and result line carry
+       .showing-note for the same reason. */
+    #misloads-tbody td { vertical-align: top; }
+    #misloads-tbody .misload-zip { font-weight: 700; }
+    #misloads-tbody .misload-place { color: var(--text); }
+    /* Why the row is here, under the ZIP. The Express wording is softer (the
+       sheet may not cover Express) and is the same size and colour on purpose: the
+       E-OPS chip beside the tracking number is the one Express signal. */
+    #misloads-tbody .misload-claim { display: block; font-size: 11.5px; color: var(--text-muted); margin-top: 2px; max-width: 34ch; }
+    #misloads-tbody td.misload-action { white-space: nowrap; }
+    #misloads-tbody tr.row-coded > td:not(.misload-action) { opacity: .55; }
+    #misloads-tbody tr.row-coded .coded-tag {
+      font: 800 10.5px/1 inherit; padding: 3px 7px; border-radius: 4px; margin-right: 6px;
+      background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border-soft);
+    }
+    #misloads-tbody .btn-bulk.quick-code { margin: 0; }
+    .misload-apply-all { margin-left: 0; }
+    .misload-apply-all:disabled { background: var(--surface-2); color: var(--text-muted); cursor: default; }
+    .misloads-result {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 6px 14px; font-size: 12.5px; font-weight: 600; color: var(--text);
+      background: var(--surface-2); border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft);
+    }
+    /* SIX TABS ON A SUPERVISOR DEVICE WRAPPED AT ABOUT 900px (#1076 verify).
+       Below this width the pills tighten and the scope caption takes its own
+       line, so the strip reads as one row of tabs plus one caption instead of a
+       ragged two-row wrap. 1040, not 900: a media query counts the scrollbar
+       the layout does not, so on Windows it fires about 17px late, and the
+       breakpoint is padded outward to cover that. */
+    @media (max-width: 1040px) {
+      #set-aside-line > div { row-gap: 6px; }
+      #set-aside-line .set-aside-tab { padding: 4px 8px; gap: 4px; }
+      #set-aside-line .lane-scope { flex-basis: 100%; }
+    }
+
     /* ── THE OTHER DESK PANE (#949) ────────────────────────────────────────
        THEME TOKENS ONLY, no hardcoded colour and no separate dark rule — the
        same discipline .by-tag and .new-tag above are written to, and the
@@ -3338,6 +3378,24 @@
               aria-selected="false" aria-controls="set-aside-pane-station"
               onclick="event.stopPropagation();clickSetAsideTab('station')"
               onkeydown="event.stopPropagation()">&#127970; Station <span class="badge" id="station-badge">0</span></button>
+      <!-- MISLOADS (#1076, spec #1043). Packages addressed to a ZIP that is
+           NOT on the CSP sheet. They are not our ZIPs and have to go back, so
+           they leave Needs Manual Review and are worked here instead.
+
+           HIDDEN WHEN EMPTY, unlike the four tabs before it: a quiet day costs
+           no screen space (spec story 28). renderMisloadsTab sets BOTH the
+           `hidden` attribute and the inline display, for the reason
+           renderOtherDeskTab spells out (`.set-aside-tab { display:inline-flex }`
+           outranks the user agent's [hidden]). Starts hidden so a page that has
+           not rendered yet never flashes it.
+
+           THE BADGE COUNTS UNCODED MISLOADS ONLY (#1079, spec story 13), so it
+           ticks down to zero as the tab is worked. The tab itself stays while
+           coded rows are still on screen. -->
+      <button type="button" class="set-aside-tab" id="set-aside-tab-misloads" role="tab" hidden style="display:none"
+              aria-selected="false" aria-controls="set-aside-pane-misloads"
+              onclick="event.stopPropagation();clickSetAsideTab('misloads')"
+              onkeydown="event.stopPropagation()">&#128230; Misloads <span class="badge" id="misloads-badge">0</span></button>
       <!-- OTHER DESK (#949, PRD #887). THEIR park, THEIR 503s and THEIR work
            area assigned, read-only, grouped by the person who did them, so
            Tyler can see what has already been worked instead of reworking it.
@@ -3538,6 +3596,49 @@
           </tr>
         </thead>
         <tbody id="station-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- ── THE MISLOADS PANE (#1076 tracer, #1078-#1081, spec #1043) ─────────
+         EVERY ROW WANTS THE SAME ANSWER, OPS2 code 65 ("Misload from hub"),
+         so the pane offers it per row, for the whole tab, and a copy-all for
+         handing the list on. Columns, in the order the spec gives them
+         (#1078): tracking number, address line, ZIP with city and state, work
+         area, Express or Ground. Belt is absent on purpose: an off-sheet ZIP
+         has none.
+
+         NO PARK AND NO MOVE TO PARKED, deliberately and permanently (spec
+         stories 23/24, #1080): a misload is not in Needs Manual Review, so a row
+         parked out of this tab would be hidden somewhere Tyler does not look.
+         Nothing in buildMisloadRow may add either control.
+
+         A CODED ROW STAYS HERE, dimmed, with its code and an Undo, until the
+         next drop rebuilds the tab (spec story 11). The badge counts the
+         UNCODED rows only (story 13), so it ticks down to zero as he works. -->
+    <div id="set-aside-pane-misloads" role="tabpanel" aria-labelledby="set-aside-tab-misloads" style="display:none">
+      <div class="section-header">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span class="filter-note showing-note" id="misloads-counts">0 misloads</span>
+          <span class="filter-note showing-note">Code 65 &middot; rebuilt from the report on every drop</span>
+        </div>
+        <div class="right" id="misloads-actions">
+          <button class="btn btn-gray" id="copy-all-misloads" onclick="copyAllMisloads()" title="Copy every misload in this tab (tracking # or full barcode per the Copy-as toggle), one per line, to hand the list to whoever sends them back. Coded rows included. Read-only.">Copy all (0)</button>
+          <button class="btn-bulk b65 misload-apply-all" id="apply-65-all-misloads" onclick="applyAllMisloads65()" title="Code 65 on every misload in this tab that is not coded yet. Rows already coded are left alone.">Apply 65 to all (0)</button>
+        </div>
+      </div>
+      <div class="misloads-result" id="misloads-result" role="status" aria-live="polite" style="display:none"></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Tracking #</th>
+            <th>Address</th>
+            <th>ZIP, city, state</th>
+            <th>Work area</th>
+            <th>Service</th>
+            <th class="misload-action-col">Code</th>
+          </tr>
+        </thead>
+        <tbody id="misloads-tbody"></tbody>
       </table>
     </div>
 
@@ -5454,6 +5555,15 @@ function rawViewerQuickCodeRender(record) {
   }
   const item = manualItems.find(i => i.label === label);
   if (!item) return null; // auto-resolved or not part of this session
+  // #1079: A MISLOAD IS CODED 65, BY THE ONE WRITER, AND ONLY WHILE THE TAB IS
+  // DRAWING IT. suggestedManualCode would offer a flagged-area misload the
+  // work-area 33, and a plain 33 record moves the row out of manualItems, so the
+  // package would leave the Misloads tab and draw as coded work in Needs Review.
+  // A misload that sits in Parked or the 503s tab is handled there: no pill.
+  if (isMisloadItem(item)) {
+    if (!misloadRows().some(r => r.label === label)) return null;
+    return { label: PostSortLane.MISLOAD_CODE, className: 'quick-code b65', title: 'Code 65 + done (misload)' };
+  }
   const quick = suggestedManualCode(item);
   if (!quick) return null; // needs an individual look — same rule as the #373 pill
   return {
@@ -5501,6 +5611,9 @@ function onRawViewerRowAction(actionId, record) {
   if (!label) return;
   const item = manualItems.find(i => i.label === label);
   if (!item) return; // already coded (or no longer manual) — render() should have disabled the pill
+  // #1079: a misload goes through applyMisload65, the Misloads tab's own writer
+  // (a misload-marked 65 that stays in the tab), never a plain code on the row.
+  if (isMisloadItem(item)) { applyMisload65(label); return; }
   const quick = suggestedManualCode(item);
   if (!quick) return;
   resolveItem(Object.assign({}, item, { code: quick, skipped: false }), findManualRow(label));
@@ -7409,6 +7522,11 @@ let setAsideTab = 'parked';
 // view state reset every load).
 let setAsideTabPinned = false;
 
+// How many misloads the Misloads tab is drawing right now (#1076), written by
+// renderMisloadsTab and read by selectSetAsideTab so a tab with no rows cannot
+// be selected. View state only: it is rebuilt by every render, never saved.
+let misloadsShown = 0;
+
 // otherDeskAllowed() -> is the Other desk pane this device's to see? (#974)
 //
 // Tyler, 2026-09-08: "i'm the tyler one … for now i still want them to see the
@@ -7445,6 +7563,13 @@ const SET_ASIDE_TABS = [
   // against a read-only audit surface.
   { key: 'station',  tab: 'set-aside-tab-station',  pane: 'set-aside-pane-station',
     scope: 'addressed to the station itself · not IBNO work · walk them to the office' },
+  // 📦 Misloads (#1076): off-sheet ZIPs. After Station and before Other desk, so
+  // Tyler's own work still wins the "land on the first tab with rows" race
+  // against the read-only audit surface. Not first in the strip on purpose
+  // either: Parked, 503s, Work area assigned and Station are all work he has
+  // already begun, and a misload nobody has touched should not steal focus.
+  { key: 'misloads', tab: 'set-aside-tab-misloads', pane: 'set-aside-pane-misloads',
+    scope: 'ZIP is not on the CSP sheet · code 65 and send back · rebuilt from the report each drop' },
   // 🖥 Other desk (#949): THEIR park, 503s and work area assigned, read-only.
   // LAST IN THE STRIP ON PURPOSE. renderSetAside lands on the first tab that
   // has rows, and Tyler's own work must win that race — the pane is an audit
@@ -7462,6 +7587,10 @@ function selectSetAsideTab(key) {
   // way back. Falling to Parked is the same fallback the strip's first entry
   // gives every other empty case.
   if (key === 'other' && !otherDeskAllowed()) key = 'parked';
+  // The Misloads tab is hidden while it has no rows (#1076), and a hidden tab
+  // cannot be the selected one for the same reason the Other desk guard above
+  // gives: an active pane with no visible way back.
+  if (key === 'misloads' && !misloadsShown) key = 'parked';
   const known = SET_ASIDE_TABS.some(t => t.key === key);
   if (known) setAsideTab = key;
   SET_ASIDE_TABS.forEach(t => {
@@ -7960,6 +8089,11 @@ function renderSetAside() {
   // row is on screen but is not work left. Everything that reads nStation below
   // is a count of what still needs somebody.
   const nStation = stationCounts.needing;
+  // THE MISLOADS TAB (#1076): derived from the loaded report on every render,
+  // never stored. It sits at the BOTTOM of the precedence order (see
+  // misloadRows), so a row another tab owns is never counted twice.
+  const rowsMisloads = misloadRows();
+  const nMisloads = rowsMisloads.length;
   // THE OTHER DESK PANE (#949). Read from the in-memory desk map and the areas
   // already applied on this device — never from parkedStore or filedStore, and
   // never the other way round. It contributes to the group's VISIBILITY and to
@@ -7981,7 +8115,7 @@ function renderSetAside() {
   // the whole group the moment the last package is walked to the office would
   // take "6 delivered today" off the screen at the exact moment Tyler wants to
   // read it.
-  const anything = n || n503 || nNotFixed || nAssigned || rowsStation.length || otherDesk.groups.length;
+  const anything = n || n503 || nNotFixed || nAssigned || rowsStation.length || nMisloads || otherDesk.groups.length;
   const section = document.getElementById('set-aside-section');
   // The group is on screen while ANY of the five has something to say (four
   // counts plus the other desk; #998 made it five). It used to key on the
@@ -8016,6 +8150,7 @@ function renderSetAside() {
   render503Tab(rows503, notFixed);
   renderAssignedTab(rowsAssigned);
   renderStationTab(rowsStation, stationCounts);
+  renderMisloadsTab(rowsMisloads);
   renderOtherDeskTab(otherDesk);
   // CLEARED BEFORE the zero early-return below, never after it. The clear used
   // to live under that return, so at a count of zero the tab kept the PREVIOUS
@@ -8054,7 +8189,7 @@ function renderSetAside() {
   // are earlier in SET_ASIDE_TABS, so they still win whenever any of them has
   // rows.
   const counts = { parked: n, '503': n503 || nNotFixed, assigned: nAssigned, station: nStation,
-    other: otherDesk.groups.length };
+    misloads: nMisloads, other: otherDesk.groups.length };
   if (counts[setAsideTab]) { selectSetAsideTab(setAsideTab); return; }
   const withRows = SET_ASIDE_TABS.filter(t => counts[t.key])[0];
   selectSetAsideTab(withRows ? withRows.key : setAsideTab);
@@ -9054,6 +9189,299 @@ function stationPaneRows() {
     out.push(stored[label]);
   });
   return out;
+}
+
+// ─── MISLOADS (#1076, spec #1043) ─────────────────────────────────────────────
+//
+// A MISLOAD IS A PACKAGE ADDRESSED TO A ZIP THAT IS NOT ON THE CSP SHEET, minus
+// the few off-sheet ZIPs 849 delivers anyway (OFF_SHEET_ZIPS_849_DELIVERS).
+// ZipIspBeltLib.isMisloadZip is the one definition (lib/zip-isp-belt.js);
+// this is the page's one binding of it to a row, through the page's own zipOf so
+// the ZIP is read the way every other ZIP on the page is read.
+//
+// BOTH REPORT PATHS READ THIS ONE FUNCTION (#1077). The Post Sort path hands it
+// to PostSortLane (EARLY_LANE_CTX); the main report path hands it to
+// IbnoMergedView through MERGED_VIEW_CTX.isMisload. A package is a misload
+// whichever report is loaded.
+function isMisloadItem(item) {
+  const lib = window.ZipIspBeltLib;
+  if (!lib || typeof lib.isMisloadZip !== 'function') return false;
+  return lib.isMisloadZip(zipOf(item));
+}
+
+// The one place PostSortLane is handed the page's misload reader. A WRAPPER,
+// never `postSortItems.filter(PostSortLane.earlyIsMine)`: filter passes the
+// array index as a second argument and that second argument is the ctx.
+const EARLY_LANE_CTX = { isMisload: isMisloadItem };
+function earlyIsMisloadRow(item) {
+  return PostSortLane.earlyIsMisload(item, EARLY_LANE_CTX);
+}
+
+// misloadRows() -> what the Misloads tab DRAWS, and the one population every
+// count on it reads. Modelled on stationRows(): a derived selector over the
+// loaded report, composed through the same loadedItems seam Park and 503 use.
+//
+// BOTH REPORTS (#1077): the source is the same union Station and Parked read,
+// the main report's open rows first, then the shaped Post Sort rows. loadedItems
+// keeps one row per label, so a package both reports carry is listed once, and
+// manualLaneItems takes a misload out of the Needs Review lanes, so it is drawn
+// only here. The open main-report rows are by definition rows that need work,
+// the same gate earlyIsMisload applies to a Post Sort row.
+//
+// EVERY WORK AREA, NOT JUST FLAGGED ONES (spec decision 25), and only rows that
+// still need work (earlyIsMisload's disposition gate).
+//
+// NO STORE, NO PERSISTENCE, NO CARRY-OVER (#1043). This selector reads the
+// report and writes nothing. Apply 65 is the one writer, and it goes through
+// resolveItem into resolvedItems like every other coded row. That record, and
+// the done state the tab draws from it, lasts until the next re-drop, Load New
+// File or reload; then the tab is rebuilt purely from the report in front of
+// Tyler and no coded misload is left in resolvedItems, Manually Resolved or
+// Copy Coded. A reload does not restore it (restoreSession drops misload
+// records), exactly as the Station pane behaved before #999.
+//
+// PRECEDENCE: THIS TAB SITS AT THE BOTTOM (spec). Parked, 503s, Work area
+// assigned and Station all win, because a state a person put the row into beats
+// a fact about its address, that state being the one with a control to undo it
+// (the rule stationRows states, applied to a second address-derived tab). It
+// preserves #944 decision 2: one package is never in two tabs, so no badge
+// double-counts. The parked store crosses sort days, so a row parked yesterday
+// can be off-sheet today. All read-only; no store moves.
+function misloadRows() {
+  return IbnoParked.loadedItems([manualItems, shapedEarlyItems()])
+    .filter(earlyIsMisloadRow)
+    .filter(it => !IbnoParked.isParked(parkedStore, it && it.label))
+    .filter(it => !isSetAside503(it))
+    .filter(it => !IbnoFiled.isFiled(filedStore, it && it.label))
+    .filter(it => !isRemoteFiledAway(it))
+    .filter(it => !isStationRow(it));
+}
+
+// The coded/uncoded split of what the tab draws (#1079). The ONE place the
+// badge, the per-row control, Apply 65 to all and the done state all read, so
+// none of them can disagree about what is left. Coded means a misload-marked
+// record in resolvedItems, the same list every other coded row lives in.
+function misloadSplit(rows) {
+  return PostSortLane.misloadSplit(rows, resolvedItems);
+}
+
+// What the last Apply 65 to all did, for the result line and its Undo (#1081).
+// View state only, never saved, and dropped by every report load (resetApp).
+let misloadsLastBulk = null;
+
+// renderMisloadsTab(rows) -> the tab, its badge and its list. The tab hides
+// itself when there is nothing to list (spec story 28); coded rows are still
+// listed, so it stays up while the done state is on screen.
+function renderMisloadsTab(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  misloadsShown = list.length;
+  const split = misloadSplit(list);
+  const tabEl = document.getElementById('set-aside-tab-misloads');
+  // BOTH THE ATTRIBUTE AND THE INLINE DISPLAY: see renderOtherDeskTab.
+  if (tabEl) {
+    tabEl.hidden = !list.length;
+    tabEl.style.display = list.length ? '' : 'none';
+  }
+  // THE BADGE IS WHAT IS LEFT (#1079, spec story 13): uncoded rows only.
+  const badge = document.getElementById('misloads-badge');
+  if (badge) badge.textContent = split.uncoded.length;
+  const counts = document.getElementById('misloads-counts');
+  if (counts) {
+    counts.textContent = list.length + (list.length === 1 ? ' misload' : ' misloads') +
+      ' · ' + split.uncoded.length + ' still to code';
+  }
+  const applyAll = document.getElementById('apply-65-all-misloads');
+  if (applyAll) {
+    applyAll.textContent = 'Apply 65 to all (' + split.uncoded.length + ')';
+    applyAll.disabled = !split.uncoded.length;
+  }
+  const copyAll = document.getElementById('copy-all-misloads');
+  if (copyAll) copyAll.textContent = 'Copy all (' + list.length + ')';
+  renderMisloadsResult();
+  // Cleared BEFORE any early return, the rule every neighbouring tab follows: a
+  // badge reading 0 over the previous report's rows is the tab claiming nothing
+  // is here while holding rows the report no longer carries.
+  const tbody = document.getElementById('misloads-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  const done = PostSortLane.misloadCodedLabels(resolvedItems);
+  list.forEach(item => tbody.appendChild(buildMisloadRow(item, done.has(item.label))));
+}
+
+// The line under the toolbar that says what Apply 65 to all just did (#1081),
+// with an Undo for the whole batch. Hidden when there is nothing to say, and it
+// only names labels that are STILL coded, so an Undo clicked row by row first
+// cannot leave it promising a batch that is already gone.
+function renderMisloadsResult() {
+  const el = document.getElementById('misloads-result');
+  if (!el) return;
+  el.textContent = '';
+  const last = misloadsLastBulk;
+  const codedNow = PostSortLane.misloadCodedLabels(resolvedItems);
+  const stillCoded = last ? last.labels.filter(l => codedNow.has(l)) : [];
+  if (!last || !stillCoded.length) { el.style.display = 'none'; return; }
+  const msg = document.createElement('span');
+  msg.textContent = 'Coded 65 on ' + stillCoded.length + (stillCoded.length === 1 ? ' misload' : ' misloads') +
+    (last.alreadyCoded ? '. ' + last.alreadyCoded + ' already coded, left alone.' : '.');
+  el.appendChild(msg);
+  const undo = document.createElement('button');
+  undo.type = 'button';
+  undo.className = 'btn-undo-mini misload-undo-all';
+  undo.textContent = 'Undo these ' + stillCoded.length;
+  undo.title = 'Take code 65 back off the rows this click coded. Rows you coded one by one stay coded.';
+  undo.addEventListener('click', () => undoMisloadsBulk());
+  el.appendChild(undo);
+  el.style.display = 'flex';
+}
+
+// buildMisloadRow(item, coded) -> one row (#1078, #1079). Fields in the spec's
+// order: tracking number (click-to-copy, FTrack link, E-OPS chip), address
+// line, ZIP with city and state and the reason it is here, work area, service,
+// then the code control. NO Park, NO Move to Parked: spec stories 23/24, #1080.
+function buildMisloadRow(item, coded) {
+  const it = item || {};
+  const v = PostSortLane.misloadView(it, zipOf(it), itemIsExpress(it));
+  const tr = document.createElement('tr');
+  tr.dataset.label = v.label;
+  if (coded) {
+    tr.classList.add('row-coded');
+    tr.dataset.coded = PostSortLane.MISLOAD_CODE;
+  }
+  const track = document.createElement('td');
+  track.className = 'misload-track mono';
+  track.innerHTML = '<span class="label-copy" title="Click to copy">' +
+    ToolHelpers.escapeHtml(v.label) + '</span>' +
+    '<span class="row-chips">' + FTrack.ftrackLink(v.label) + eopsChip(it) + '</span>';
+  tr.appendChild(track);
+  const addr = document.createElement('td');
+  addr.className = 'misload-address';
+  addr.textContent = v.street || '—';
+  tr.appendChild(addr);
+  // ZIP WITH CITY AND STATE, never the ZIP alone (#1078): 85258 and 85254 look
+  // alike and only one is ours, and "PHOENIX, AZ" beside an unfamiliar ZIP is
+  // how the mis-keyed 95027 false positive gets caught by eye.
+  const zip = document.createElement('td');
+  zip.className = 'misload-zipcell';
+  const cityState = v.zipLine.slice(v.zip.length).trim();
+  zip.innerHTML = '<span class="misload-zip mono">' + ToolHelpers.escapeHtml(v.zip || '—') + '</span>' +
+    (cityState ? ' <span class="misload-place">' + ToolHelpers.escapeHtml(cityState) + '</span>' : '') +
+    '<span class="misload-claim">' + ToolHelpers.escapeHtml(v.claim) + '</span>';
+  tr.appendChild(zip);
+  const area = document.createElement('td');
+  area.className = 'cat-text misload-area';
+  area.textContent = v.workArea || '—';
+  tr.appendChild(area);
+  const svc = document.createElement('td');
+  svc.className = 'misload-service';
+  svc.innerHTML = v.express
+    ? '<span class="express-pill express-yes">Express</span>'
+    : '<span class="express-pill express-no">Ground</span>';
+  tr.appendChild(svc);
+  const act = document.createElement('td');
+  act.className = 'misload-action action-cell';
+  if (coded) {
+    const tag = document.createElement('span');
+    tag.className = 'coded-tag';
+    tag.textContent = 'Coded ' + PostSortLane.MISLOAD_CODE;
+    act.appendChild(tag);
+    const undo = document.createElement('button');
+    undo.type = 'button';
+    undo.className = 'btn-undo-mini misload-undo';
+    undo.textContent = 'Undo';
+    undo.title = 'Take code 65 back off this package';
+    undo.addEventListener('click', e => { e.stopPropagation(); undoMisload(v.label); });
+    act.appendChild(undo);
+  } else {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-bulk quick-code b65 misload-apply';
+    btn.textContent = 'Apply 65';
+    const meaning = ScanCodes.meaning(PostSortLane.MISLOAD_CODE, 'status');
+    btn.title = 'Code 65' + (meaning ? ' (' + meaning + ')' : '') + ' on this package';
+    btn.addEventListener('click', e => { e.stopPropagation(); applyMisload65(v.label); });
+    act.appendChild(btn);
+  }
+  tr.appendChild(act);
+  attachLabelCopy(tr, v.label, it.scanBarcode, copyOptsFor(it));
+  return tr;
+}
+
+// codeMisload(row) -> write code 65 on one misload row. THE ONE WRITER, and not
+// a new one: it goes through resolveItem, the function every 33/65 button on
+// this page calls, so the record lands in resolvedItems (Manually Resolved,
+// Copy Coded, the TSV, the session) exactly as any coded row does. The
+// misload-marked record is how the lanes and the progress count leave it out.
+// Returns false, and writes nothing, for a row already coded.
+function codeMisload(row) {
+  if (!row || !row.label) return false;
+  if (PostSortLane.misloadCodedLabels(resolvedItems).has(row.label)) return false;
+  resolveItem(PostSortLane.misloadCodedRecord(row, currentSortDay), null);
+  return true;
+}
+
+// Per-row Apply 65 (#1079). The row must be one the tab is drawing RIGHT NOW,
+// asked of misloadRows() itself rather than of the label alone, so a stale
+// click on a row the last drop removed codes nothing.
+function applyMisload65(label) {
+  const row = misloadRows().find(r => r.label === label);
+  if (!row) return false;
+  const did = codeMisload(row);
+  if (did) renderSetAside();
+  return did;
+}
+
+// Apply 65 to all (#1081). Acts on exactly the uncoded rows the tab is drawing:
+// the same misloadRows() and the same split the badge reads, never a second
+// query. Coded rows are not touched, and nothing outside the tab is.
+function applyAllMisloads65() {
+  const split = misloadSplit(misloadRows());
+  if (!split.uncoded.length) return 0;
+  const coded = [];
+  split.uncoded.forEach(row => { if (codeMisload(row)) coded.push(row.label); });
+  misloadsLastBulk = { labels: coded, alreadyCoded: split.coded.length };
+  renderSetAside();
+  return coded.length;
+}
+
+// Undo one misload's code. Goes through undoResolve, which knows a misload
+// record goes back to the REPORT (the tab derives it again) and never into the
+// Needs Manual Review working list.
+function undoMisload(label) {
+  undoResolve(label);
+  renderSetAside();
+}
+
+// Undo exactly the rows the last Apply 65 to all coded, and only those still
+// coded. Rows Tyler coded one at a time stay coded.
+function undoMisloadsBulk() {
+  const last = misloadsLastBulk;
+  if (!last) return;
+  const coded = PostSortLane.misloadCodedLabels(resolvedItems);
+  last.labels.filter(l => coded.has(l)).forEach(l => undoResolve(l));
+  misloadsLastBulk = null;
+  renderSetAside();
+}
+
+// Copy all (#1081), every misload in the tab, coded or not: the list is for
+// whoever sends them back. Built on the shared Set aside copy helpers, so the
+// no-fallback barcode rule, the skip note and the failure feedback are the ones
+// the 503s and Parked tabs already have. Read-only.
+function copyAllMisloads() {
+  const rows = misloadRows();
+  if (!rows.length) return;
+  const batch = setAsideCopyBatch(rows);
+  const btn = document.getElementById('copy-all-misloads');
+  if (!batch.lines.length) {
+    // NOT a no-op: the clipboard keeps what it held and the button says so.
+    if (btn) {
+      btn.textContent = '0 copied';
+      setTimeout(() => { renderSetAside(); }, 1200);
+    }
+    setAsideCopySkipNote(batch.skipped);
+    return;
+  }
+  setAsideCopyWrite('copy-all-misloads', batch.lines);
+  setAsideCopySkipNote(batch.skipped);
 }
 
 // filed503SourceItems() -> every row the page currently holds that could be
@@ -11961,6 +12389,10 @@ const MERGED_VIEW_CTX = {
   isExpress: (item) => itemIsExpress(item),
   bucketOf: (item) => manualBucket(item),
   isWorkAreaFlagged: (ibWork) => IbnoRules.isWorkAreaFlagged(ibWork),
+  // #1077: a misload is not working population, whichever report carries it.
+  // The same page binding the Post Sort path hands PostSortLane (EARLY_LANE_CTX),
+  // so the two reports cannot disagree about what "not our ZIP" means.
+  isMisload: (item) => isMisloadItem(item),
   // The BUILDING key, unit stripped — sort clustering, sheet bands and the
   // Multi-stop chip ride it so one building walks together. Read through
   // lib/ibno-work-loop.js so the building key and the unit-exact stop key have
@@ -12015,7 +12447,16 @@ const MERGED_VIEW_CTX = {
 // the other.
 function isMineToWork(item) { return IbnoMergedView.inWorkingPopulation(item, MERGED_VIEW_CTX); }
 function manualLaneOf(item) { return isMineToWork(item) ? 'mine' : 'other'; }
-function manualLaneItems(key) { return manualItems.filter(it => manualLaneOf(it) === key); }
+// manualLaneOf WITHOUT the misload reader, for rows that are already coded.
+const CODED_LANE_CTX = Object.assign({}, MERGED_VIEW_CTX, { isMisload: null });
+function codedLaneOf(item) { return IbnoMergedView.inWorkingPopulation(item, CODED_LANE_CTX) ? 'mine' : 'other'; }
+// #1077: A MISLOAD IS IN NEITHER LANE. inWorkingPopulation (through the injected
+// isMisload) keeps it out of 'mine'. That alone would send it to 'other' (Other
+// work areas) and draw it there AND in the Misloads tab, so 'other' drops it too.
+// It is worked in one place.
+function manualLaneItems(key) {
+  return manualItems.filter(it => manualLaneOf(it) === key && !(key === 'other' && isMisloadItem(it)));
+}
 // The working list as Tyler sees it: parked rows live in the Parked tab in
 // the Set aside group (#698), not in any lane. Every render and count of a
 // lane reads this, so a parked row can never inflate a badge, a search note,
@@ -12078,7 +12519,27 @@ function workingLaneItems(key) {
 // earlyLaneCache on purpose: the cache keys on postSortItems and the fold,
 // and parked state changes on a click that touches neither.
 function workingEarlyLaneItems(key) {
-  return earlyLaneItems(key)
+  return withoutSetAsideEarly(earlyLaneItems(key));
+}
+// The same set-aside exclusions over the FOLD-INDEPENDENT lane split (#985).
+// Only the progress bar's denominator reads it: everything else that reads
+// workingEarlyLaneItems is a count of what is ON SCREEN and follows the fold on
+// purpose. The filter chain is ONE function so the two readers can never
+// disagree about which rows Tyler has set aside.
+function workingEarlyDataLaneItems(key) {
+  return withoutSetAsideEarly(earlyDataLaneItems(key));
+}
+function withoutSetAsideEarly(list) {
+  return list
+    // #1076: A MISLOAD LEAVES EVERY LANE, whatever the fold. earlyIsMine already
+    // keeps it out of the folded population, but Show all puts every row back
+    // and an unflagged misload would then draw in Other work areas AND in the
+    // Misloads tab. Placed first, and independent of the other filters below on
+    // purpose: where a misload that is also parked or filed is DRAWN is those
+    // tabs' business (misloadRows reads them), but it is never Needs Review work.
+    // This is also what takes it out of the progress denominator and the badges,
+    // which read this chain.
+    .filter(it => !earlyIsMisloadRow(it))
     // #998, the same rule on the early lane — and on the Post Sort report this
     // is the one that actually fires, since ADR 0021 made Post Sort the daily
     // driver. Outside the earlyLaneCache for the reason the parked filter above
@@ -12620,6 +13081,15 @@ const SESSION_KEY = 'ibno_session';
 
 function renderResults({ auto, manual, dayType }, recurringMap = {}) {
   currentRecurringMap = recurringMap || {};
+  // #1043, NO CARRY-OVER: every main-report load (a fresh drop, a merge, a re-run,
+  // a session restore) rebuilds the Misloads tab purely from the report in front
+  // of Tyler. A main-report drop does not go through resetApp, and resolvedItems
+  // survives it by design, so a coded misload record would otherwise ride along:
+  // a 65 in Manually Resolved and Copy Coded for a package whose ZIP may now be on
+  // the sheet, or that the new report no longer carries. Dropped here, with the
+  // batch the result line's Undo points at.
+  resolvedItems = PostSortLane.withoutMisloadRecords(resolvedItems);
+  misloadsLastBulk = null;
   autoItems = auto;           // hold the model; exports + overrides read/write here
   manualItems = manual;       // hold the unresolved manual rows for persistence
   currentDayType = dayType;
@@ -12722,6 +13192,9 @@ function renderResults({ auto, manual, dayType }, recurringMap = {}) {
   } else {
     document.getElementById('resolved-section').style.display = 'none';
     document.getElementById('resolved-badge').textContent = '0';
+    // Hidden is not empty: the table still holds the rows a dropped misload
+    // record drew (#1043), so clear it rather than leave a stale 65 in the DOM.
+    document.getElementById('resolved-tbody').innerHTML = '';
   }
 
   // #375: a report load opens with every section collapsed so it lands
@@ -12861,7 +13334,10 @@ function restoreSession() {
   // Set resolved first so renderResults computes the right total and shows the
   // resolved section. Restore renders from the persisted models — it never
   // re-runs detectRecurring, so the 30-day history is not re-touched.
-  resolvedItems = s.resolved;
+  // A coded misload is never restored (#1043, no persistence): the Misloads tab
+  // is rebuilt from the report, and a stored record would otherwise come back
+  // in Manually Resolved and Copy Coded with no row in the tab to explain it.
+  resolvedItems = PostSortLane.withoutMisloadRecords(s.resolved);
   document.getElementById('drop-zone').style.display = 'none';
   document.getElementById('reset-btn').style.display = 'inline-flex';
   document.getElementById('collapse-all-btn').style.display = 'inline-flex';
@@ -13448,7 +13924,11 @@ let mergedFilters = IbnoMergedView.defaultFilters();
 function mergedManualRows() {
   const seen = new Set();
   const out = [];
-  manualLaneItems('mine').concat(earlyLaneItems('mine')).forEach(it => {
+  // A misload is in NO lane, whatever the fold: Show all puts every early row
+  // back into earlyLaneItems, and withoutSetAsideEarly is what takes the misload
+  // out again for the lanes. The chip counts read the same rule, or "All" and
+  // "Express" count a row the lanes do not draw (#1138 review).
+  manualLaneItems('mine').concat(earlyLaneItems('mine').filter(it => !earlyIsMisloadRow(it))).forEach(it => {
     if (!it || !it.label || seen.has(it.label)) return;
     seen.add(it.label);
     out.push(it);
@@ -14491,7 +14971,7 @@ function warn503LogNotSaved() {
 // Stamped with currentSortDay, the SAME day the area entry itself is stamped
 // with, so the log and the value it describes can never disagree about which
 // sort they belong to. No device clock anywhere (#695).
-// wasFiled is the pre-write membership snapshot, and the unrecord branch is
+// was503 is the pre-write membership snapshot, and the unrecord branch is
 // GATED ON IT. Without that gate this function destroyed the very signal it
 // feeds: the log outlives the sort day (that is its whole point), the area
 // store does not, so on any LATER day every box is blank and every ordinary
@@ -14509,7 +14989,7 @@ function warn503LogNotSaved() {
 // no-address early return and be silently left out of the log. It is a
 // FALLBACK and never an override — the report in front of Tyler is always the
 // better evidence about the package in front of Tyler.
-function record503Changes(labels, wasFiled, fallbackAddresses) {
+function record503Changes(labels, was503, fallbackAddresses) {
   const day = currentSortDay;
   if (!day) return;   // an undateable report cannot date a filing; nothing is written
   // Addresses come from the SET-ASIDE population, not from the commit's own
@@ -14531,7 +15011,7 @@ function record503Changes(labels, wasFiled, fallbackAddresses) {
       addressOf[it.label] = it.address || '';
     }
   });
-  const filedBefore = wasFiled || Object.create(null);
+  const before503 = was503 || Object.create(null);
   let touched = false;
   (Array.isArray(labels) ? labels : []).forEach(label => {
     const address = addressOf[label] || '';
@@ -14539,7 +15019,7 @@ function record503Changes(labels, wasFiled, fallbackAddresses) {
     const now503 = is503Label(label);
     if (now503) {
       filed503Log = Ibno503.record(filed503Log, { label: label, address: address, day: day });
-    } else if (filedBefore[label]) {
+    } else if (before503[label]) {
       filed503Log = Ibno503.unrecord(filed503Log, { label: label, address: address });
     } else {
       return;   // never filed by this write: the log is none of this write's business
@@ -14646,7 +15126,7 @@ function commit503(changed, was503, commitFn) {
   announce503Filing(changed, was503, commitFn);
 }
 
-// announce503Filing(changed, wasFiled, commitFn) -> the counted trace and the
+// announce503Filing(changed, was503, commitFn) -> the counted trace and the
 // UNDO for a filing, spoken through the existing #goesto-note pill (#746 review
 // findings 1 and 3).
 //
@@ -14671,9 +15151,9 @@ function commit503(changed, was503, commitFn) {
 // channel's precedence rule: an active dock-flex DRIFT WARNING suppresses it.
 // That is the right way round. A package about to be walked to the wrong belt
 // outranks an undo affordance, and the 503s tab's Clear is still there.
-function announce503Filing(changed, wasFiled, commitFn) {
+function announce503Filing(changed, was503, commitFn) {
   if (typeof commitFn !== 'function') return;
-  const before = wasFiled || Object.create(null);
+  const before = was503 || Object.create(null);
   const filedNow = (Array.isArray(changed) ? changed : [])
     .filter(label => !before[label] && is503Label(label));
   if (!filedNow.length) return;
@@ -15727,7 +16207,7 @@ function manualAddressPairs() {
 // in it), so the two halves of this pool agree.
 function codedRowsOnScreen() {
   if (!loadedReportDay || !currentSortDay) return [];
-  return resolvedItems.filter(it => it && it._codedDay === currentSortDay);
+  return resolvedItems.filter(it => it && !it.misload && it._codedDay === currentSortDay);
 }
 
 // The same pairs for the Post Sort early lane. EVERY early row, not just the
@@ -17784,7 +18264,10 @@ function reportPostSortInternalError(err) {
 // documented there. This stays as the page's one call site so every reader
 // here keeps reading the same predicate.
 function earlyIsMine(it) {
-  return PostSortLane.earlyIsMine(it);
+  // #1076: a misload is not Tyler's queue. The ctx is the page's one binding of
+  // the CSP sheet (see EARLY_LANE_CTX); the wrapper also keeps `.filter(earlyIsMine)`
+  // from handing PostSortLane an array index as that ctx.
+  return PostSortLane.earlyIsMine(it, EARLY_LANE_CTX);
 }
 
 function earlyWorkingItems() {
@@ -17803,7 +18286,10 @@ function updateStatTotal(auto, manual) {
   // Same exclusion renderResults always used: express rows outside the
   // flagged areas are surfaced for visibility but are not Tyler's queue, so
   // they must not inflate the day's number (Tyler, 2026-08-06).
-  const notOurs = (it) => IbnoRules.manualLane(it) === 'express-other';
+  // #1077: a misload is not the day's work on either report (the Post Sort half
+  // already leaves it out through earlyWorkingItems), so the main report's rows
+  // leave the Total on the same terms.
+  const notOurs = (it) => IbnoRules.manualLane(it) === 'express-other' || isMisloadItem(it);
   // Issue #669 review finding 2: #662 deliberately does NOT dedup an early
   // row against the main report's own row for the same label — PR #658's own
   // fold regression test requires a label the main report calls 'manual' to
@@ -17820,7 +18306,9 @@ function updateStatTotal(auto, manual) {
   const countedLabels = new Set();
   a.forEach(it => countedLabels.add(it.label));
   m.filter(it => !notOurs(it)).forEach(it => countedLabels.add(it.label));
-  resolvedItems.filter(it => !notOurs(it)).forEach(it => countedLabels.add(it.label));
+  // A coded misload (#1079) is not part of this count: a misload is excluded
+  // from the Total before it is coded, and coding it must not add it back.
+  resolvedItems.filter(it => !notOurs(it) && !it.misload).forEach(it => countedLabels.add(it.label));
   const base = countedLabels.size;
   const uniqueEarly = earlyWorkingItems().filter(it => !countedLabels.has(it.label)).length;
   const el = document.getElementById('stat-total');
@@ -17951,6 +18439,9 @@ function loadPostSortAsMain(rows, fileName) {
   // anywhere: a clock that dipped to '' in between would make ANY Post Sort
   // day look later than nothing, roll the stores, and wipe areas typed against
   // a NEWER report. The clock belongs to the work, not to what is on screen.
+  // A coded misload does NOT survive this reset (#1043: no store, no
+  // persistence, no carry-over). resetApp() empties resolvedItems, and the
+  // Misloads tab is rebuilt from the report in front of Tyler.
   resetApp();
   document.getElementById('file-label').textContent = fileName;
   document.getElementById('drop-zone').style.display = 'none';
@@ -18706,7 +19197,13 @@ function earlyLaneOf(item) {
 // criterion: "the Express lane's badge count includes its early rows") reads
 // the SAME fold-aware population that is actually on screen, rather than
 // re-deriving it and silently drifting from what renderEarlyLane() renders.
-function earlyVisibleItems() {
+//
+// RENAMED earlyItemsAsRendered (#985). The old name read like a population, and
+// it was reached for as one: it IS the Show all fold, so it answers "what is on
+// screen", never "what is the work". The progress denominator took it for a
+// data question and moved when a view toggle moved. A data question reads
+// earlyWorkingItems() / earlyDataLaneItems() below, which ignore the fold.
+function earlyItemsAsRendered() {
   return postSortShowAll ? postSortItems : postSortItems.filter(earlyIsMine);
 }
 
@@ -18733,6 +19230,7 @@ function earlyVisibleItems() {
 let earlyLaneCache = null;
 function invalidateEarlyLanes() {
   earlyLaneCache = null;
+  earlyDataLaneCache = null;
   // The shaped-item cache keys off the same array and every data change funnels
   // through here, so the two are cleared together rather than drifting apart.
   invalidateShapedEarlyItems();
@@ -18741,12 +19239,30 @@ function earlyLanesByKey() {
   if (earlyLaneCache && earlyLaneCache.src === postSortItems && earlyLaneCache.showAll === postSortShowAll) {
     return earlyLaneCache.byKey;
   }
-  const byKey = PostSortLane.earlyLanesByKey(earlyVisibleItems(), MANUAL_LANES.map(l => l.key), earlyLaneOf);
+  const byKey = PostSortLane.earlyLanesByKey(earlyItemsAsRendered(), MANUAL_LANES.map(l => l.key), earlyLaneOf);
   earlyLaneCache = { src: postSortItems, showAll: postSortShowAll, byKey: byKey };
   return byKey;
 }
 function earlyLaneItems(laneKey) {
   return earlyLanesByKey()[laneKey] || [];
+}
+
+// earlyDataLaneItems(laneKey) -> the SAME lane split, over the FOLD-INDEPENDENT
+// population (#985): the rows that need work in Tyler's flagged work areas,
+// whether or not Show all is on. earlyLaneItems() is what is ON SCREEN and moves
+// with the fold; this is what the WORK is, and it does not. Anything that asks a
+// DATA question about the early rows (the progress bar's total) reads this one,
+// so toggling a view can never move a ratio. Same cache shape as earlyLaneCache,
+// keyed on postSortItems alone because the fold is not one of its inputs.
+let earlyDataLaneCache = null;
+function earlyDataLanesByKey() {
+  if (earlyDataLaneCache && earlyDataLaneCache.src === postSortItems) return earlyDataLaneCache.byKey;
+  const byKey = PostSortLane.earlyLanesByKey(earlyWorkingItems(), MANUAL_LANES.map(l => l.key), earlyLaneOf);
+  earlyDataLaneCache = { src: postSortItems, byKey: byKey };
+  return byKey;
+}
+function earlyDataLaneItems(laneKey) {
+  return earlyDataLanesByKey()[laneKey] || [];
 }
 
 // renderEarlyLane() -> rebuild every lane's early group (issue #662, split
@@ -18856,7 +19372,24 @@ function renderEarlyLane() {
   // accounted for on screen by the Parked tab's own badge and the always-
   // visible header chip (#612 decision 8), not by this sentence.
   const needWorkCount = postSortItems.filter(earlyIsMine).length;
-  const foldedCount = postSortItems.length - needWorkCount;
+  // #1076: A MISLOAD IS NEITHER KEPT NOR FOLDED. earlyIsMine puts it outside the
+  // fold's kept set, but Show all does NOT bring it back (every lane drops it,
+  // it is worked in the Misloads tab), so counting it as "hidden" would offer a
+  // toggle that cannot reveal what it claims to hide. It is its own number, and
+  // the strip says so when there is one.
+  const misloadCount = postSortItems.filter(earlyIsMisloadRow).length;
+  const foldedCount = postSortItems.length - needWorkCount - misloadCount;
+  // WHAT THE STRIP SAYS IS THE MISLOADS TAB'S OWN COUNT. misloadCount above
+  // answers the FOLD arithmetic (every misload is neither kept nor folded, even
+  // one that sits in Parked or the 503s tab); the sentence names the rows the
+  // Misloads tab LISTS, so it reads misloadRows(), the same call the tab and its
+  // badge read. Two counts of "misloads" on one screen is the disagreement
+  // (26 against 23) this replaces.
+  const misloadsListed = misloadRows().length;
+  // The rest of the misloads sit in ANOTHER Set aside tab (parked, 503s, work
+  // area assigned), which outranks the Misloads tab. The strip says so in
+  // words, so Show all N still adds up: shown + hidden + listed + elsewhere.
+  const misloadsElsewhere = Math.max(0, misloadCount - misloadsListed);
   // compareBySort's default 'report' sort key reads item._ord, which
   // autoItems/manualItems get assigned in renderResults but a raw
   // lib/post-sort-lane.js item never does. Without this, EVERY early item's
@@ -18896,7 +19429,7 @@ function renderEarlyLane() {
       ? shownCount + ' of ' + postSortItems.length
       : String(postSortItems.length);
   }
-  renderPostSortFoldToggle(foldedCount, needWorkCount);
+  renderPostSortFoldToggle(foldedCount, needWorkCount, misloadsListed, misloadsElsewhere);
   if (clearBtn) clearBtn.style.display = postSortItems.length ? '' : 'none';
   // Nothing to join a barcode lookup onto until a Post Sort report is loaded.
   if (barcodeLoadBtn) barcodeLoadBtn.style.display = postSortItems.length ? '' : 'none';
@@ -19047,9 +19580,30 @@ function renderEarlyLane() {
 function progressClaim(html) { return '<div class="fold-claim fold-claim-progress">' + html + '</div>'; }
 function reportClaim(html) { return '<div class="fold-claim fold-claim-report">' + html + '</div>'; }
 
-function renderPostSortFoldToggle(foldedCount, visibleCount) {
+function renderPostSortFoldToggle(foldedCount, visibleCount, misloadCount, misloadsElsewhere) {
   const host = document.getElementById('post-sort-fold');
   if (!host) return;
+  // The totals in this strip stay parked-blind statements about the LOADED
+  // report (#764/#820): "All N loaded rows" and "Show all N" are
+  // postSortItems.length whatever Tyler has set aside, misloads included, so the
+  // sentence below says where the misloads are instead of quietly subtracting.
+  // misloadCount is the number the Misloads tab lists (misloadRows), NOT the
+  // fold's count of every misload row: see renderEarlyLane.
+  const misloads = misloadCount || 0;
+  const releasable = postSortItems.length;
+  // Said INSIDE the existing claim blocks, not as a third one: the #820 split
+  // is two kinds of claim (progress, report) and a misload count is a report
+  // claim. Absent when there are none, so a report without misloads reads
+  // exactly as it always did. "In Set aside", not "in the Misloads tab": a
+  // misload also parked, filed or already inbound to 503 is drawn by THAT tab
+  // (the Misloads tab sits at the bottom of the precedence order).
+  const elsewhere = misloadsElsewhere || 0;
+  const misloadText = (misloads
+    ? misloads + (misloads === 1 ? ' misload is' : ' misloads are') + ' in Set aside. '
+    : '') + (elsewhere
+    ? elsewhere + (elsewhere === 1 ? ' more misload sits' : ' more misloads sit') +
+      ' in another Set aside tab, such as Parked or 503s. '
+    : '');
   // Hidden whenever there is nothing folded, in BOTH states (code review,
   // 2026-08-13). Gating only the folded state left the show-all branch
   // offering "Showing all N rows. Show only the N that need work" when
@@ -19148,14 +19702,14 @@ function renderPostSortFoldToggle(foldedCount, visibleCount) {
   // Pinned end to end by tests/ibno-fold-toggle-parked-dom.test.js, and the
   // #820 block-per-claim structure by tests/ibno-fold-strip-claims-dom.test.js.
   host.innerHTML = (doneNote ? progressClaim(doneNote) + '\n' : '') + (postSortShowAll
-    ? reportClaim('All ' + postSortItems.length + ' loaded rows, not only your flagged work areas. ' +
+    ? reportClaim('All ' + releasable + ' loaded rows, not only your flagged work areas. ' + misloadText +
       '<button type="button" class="linkish" onclick="togglePostSortFold()">Show only my ' +
       visibleCount + '</button>')
     : reportClaim(visibleCount + ' in your flagged work areas.') + '\n' +
       reportClaim(foldedCount +
-      ' hidden (outside your flagged work areas, or already answered). ' +
+      ' hidden (outside your flagged work areas, or already answered). ' + misloadText +
       '<button type="button" class="linkish" onclick="togglePostSortFold()">Show all ' +
-      postSortItems.length + '</button>'));
+      releasable + '</button>'));
 }
 
 function togglePostSortFold() {
@@ -19536,7 +20090,13 @@ function workProgressLabels() {
   // work that still needs him, and a parked row must never read as done.
   // Early rows included (#698 review finding 2).
   workingLaneItems('mine').forEach(it => add(it.label));
-  workingEarlyLaneItems('mine').forEach(it => add(it.label));
+  // THE FOLD-INDEPENDENT READ (#985). This used to be workingEarlyLaneItems,
+  // which reads earlyItemsAsRendered() and so IS the Show all fold: a needs-work
+  // row with no usable area joined the total only while Show all was on, and the
+  // bar's ratio moved when a view toggle moved. Same shape as #944's blocking
+  // bug (a view answering a data question), one tier down. The bar asks "how
+  // much work is there", which the fold has no say in.
+  workingEarlyDataLaneItems('mine').forEach(it => add(it.label));
   // FILED ROWS STAY IN THE POPULATION, and this is the one place the ✅ Work
   // area assigned tab differs from Park and 503 (#734).
   //
@@ -22781,7 +23341,14 @@ function markRowCoded(tr, item) {
 // mark has vanished is a row that reads as unworked and gets worked twice.
 function codedItemsForLane(laneKey) {
   if (!loadedReportDay || !currentSortDay) return [];
-  return resolvedItems.filter(it => manualLaneOf(it) === laneKey && it._codedDay === currentSortDay)
+  // #1077: coded rows keep the lane they were coded in. A row Tyler coded before
+  // it counted as a misload (or one coded by a restored session) is finished
+  // work, and re-routing it on a ZIP verdict would move it out of the list it was
+  // coded in, so this lane test deliberately does not ask the misload reader.
+  // #1079: a coded MISLOAD record (it.misload) draws in the Misloads tab's done
+  // state, never in a Needs Review lane, so it is dropped here whatever lane the
+  // lane rule would give it.
+  return resolvedItems.filter(it => !it.misload && codedLaneOf(it) === laneKey && it._codedDay === currentSortDay)
     // Set aside beats coded-and-kept (#699). Both working-lane filters already
     // drop a filed 503, but these coded rows render alongside them from a
     // different source, so without this the row appeared dimmed in the working
@@ -22939,6 +23506,28 @@ function resolveItem(item, tr) {
 function undoResolve(label) {
   const item = resolvedItems.find(i => i.label === label);
   if (!item) return;
+  // A CODED MISLOAD (#1079) has no Needs Manual Review row to go back to: the
+  // Misloads tab derives it from the report, so taking the code off just
+  // removes the record and the tab draws it uncoded again. IbnoSession.undo
+  // would push it into manualItems, a phantom working-list row for a package
+  // the report never put there.
+  if (item.misload) {
+    resolvedItems = resolvedItems.filter(i => i !== item);
+    if (resolvedItems.length === 0) {
+      document.getElementById('resolved-section').style.display = 'none';
+      // Hidden is not empty: clear the table too, so no stale row waits there
+      // for the next write to repaint it.
+      document.getElementById('resolved-tbody').innerHTML = '';
+      document.getElementById('resolved-badge').textContent = '0';
+    } else {
+      renderResolvedSection();
+    }
+    updateStatTotal();
+    persistSession();
+    refreshRawViewerPillsIfOpen();
+    renderSetAside();
+    return;
+  }
   // Back in the working list, so it is no longer coded on any day. Left behind,
   // a stale stamp would survive a later re-code and pin the row to the wrong
   // sort day's coded set (#697).
@@ -24329,6 +24918,7 @@ function resetApp() {
   document.getElementById('file-label').textContent = 'No file loaded';
   document.getElementById('file-input').value = '';
   resolvedItems = [];
+  misloadsLastBulk = null;   // #1081: the Apply 65 to all result line is about the report that just left
   autoItems = [];
   manualItems = [];
   autoFilter = { codes: [], categories: [] };

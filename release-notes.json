@@ -915,6 +915,243 @@
       "mergedAt": null,
       "commit": null,
       "shippedAt": null
+    },
+    {
+      "id": "pr-1125",
+      "pr": 1125,
+      "issue": 1124,
+      "tool": "people",
+      "title": "People page loads the People list from the repo and saves changes back",
+      "summary": "With the repo and a token saved once in the People page Settings, every device opens the People page with the station list from the repo. Changes you make show a Save to repo button, and saving updates the list for every device.",
+      "watchFor": [
+        "Changes are not shared until you press Save to repo. If the repo changed since the page loaded, nothing is saved and the page asks you to reload.",
+        "If this browser has changes the repo does not have, the page does not replace them. It asks you to pick the repo list or save yours.",
+        "If the repo cannot be reached or its file cannot be read, the list in this browser stays as it was and the page says what happened.",
+        "The Time-Off Log, Writeups and Address Catcher show the repo list on a device once the People page has loaded it there."
+      ],
+      "howToSee": [
+        "Open the People page and open Settings in the Repo box",
+        "Enter the repo owner, name, branch and a token, and press Save settings",
+        "See the list load and the message that says how many people came from the repo",
+        "Add a person, press Save to repo, and open the People page on another device"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1127",
+      "pr": 1127,
+      "issue": 1126,
+      "tool": "writeups",
+      "title": "Writeups measures early departures by the sort and adds a not sick kind",
+      "summary": "A sick early departure now takes clock-in, clock-out and the time the sort ended, so the page no longer asks for a scheduled end. A new Left early, not sick, entry covers leaving with no notice and can reach a Notice or Final Notice.",
+      "watchFor": [
+        "Sick early departures still go only in a Documented Discussion. The page now suggests that type when only sick departures are ticked.",
+        "An incident in a saved writeup shows a small tag and cannot change to another kind. Delete that writeup from history first if it was filed wrong.",
+        "Older sick entries keep their scheduled end wording until you edit them. Editing one asks for clock-in and Sort ended.",
+        "Changing a sick entry to not sick asks you to confirm, because it can then reach a Notice."
+      ],
+      "howToSee": [
+        "Open the Writeups page and add two sick early departures with clock-in, clock-out and Sort ended",
+        "Tick both and leave the type on Use the suggestion",
+        "See the Documented Discussion draft, then save it and see the tag on both rows"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1131",
+      "pr": 1131,
+      "issue": 1128,
+      "tool": "command-center",
+      "title": "The shared file reader can read the old Excel time off export",
+      "summary": "The hosted tools gain a reader for the old Excel format that the time off report comes in, plus the rules that turn that report into days off per person. No page uses it yet, so every tool behaves exactly as before.",
+      "watchFor": [
+        "Dropping an old format Excel file on any tool still shows the same message asking you to save it as a newer Excel file or CSV."
+      ],
+      "howToSee": [
+        "Open any tool that takes a report file",
+        "Drop an old format Excel file on it",
+        "See the same save it again message as before"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1132",
+      "pr": 1132,
+      "issue": 1129,
+      "tool": "schedule",
+      "title": "The Schedule tab becomes a planner you fill in by hand",
+      "summary": "The Schedule tab is now a planner grid that keeps a regular schedule every week until you change it. Drop the time off file and your reports are marked off on the right dates, then type or click an area into each day and the count for every area updates as you go.",
+      "watchFor": [
+        "The first time, the page asks for your employee ID so it keeps only your reports from the time off file.",
+        "Approved time off is locked. If the file is wrong, drop a newer one. Days asked off but not approved show a dashed outline and can still be filled.",
+        "Everything is saved in this browser only. Export a backup from Settings and backup now and then.",
+        "The old coverage panel, rules panel and image download are gone from this page."
+      ],
+      "howToSee": [
+        "Open the Schedule tab and type your employee ID when asked",
+        "Drop the Time Off Submitted Requests Detail file as it comes from FedEx",
+        "Click a day and type A, then watch the Cage A count under the grid go to 1",
+        "Press Screenshot view to see only the grid and the counts"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1133",
+      "pr": 1133,
+      "issue": 1130,
+      "tool": "dashboard",
+      "title": "The front page drops the coverage tile and backfill suggestions",
+      "summary": "The Command Center front page no longer shows the Coverage tile, the uncovered area rows in Needs Attention or the backfill suggestions. A plain Schedule tile now opens the planner, where you fill in areas and days off by hand.",
+      "watchFor": [
+        "Needs Attention now lists only Flags, heads ups and the counted events from today, so an empty area no longer appears there.",
+        "Anyone out today for protected sick or a scheduled absence now shows on the Attendance Today tile. They are still never counted and never named in Needs Attention.",
+        "The scheduling rules panel and the backfill bench are gone everywhere, not only from the front page."
+      ],
+      "howToSee": [
+        "Open the Command Center front page",
+        "Find the Schedule tile and read Plan areas and days off",
+        "Click it and see the planner open",
+        "Log a protected sick absence for today in Time-Off and see it listed as out today on the Attendance Today tile"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1135",
+      "pr": 1135,
+      "issue": 1134,
+      "tool": "schedule",
+      "title": "Copy and paste days, tick regular days off, and sort by clicking a heading",
+      "summary": "You can now copy a day and paste it onto several days at once, like a spreadsheet, and tick each admin's regular days off in Settings and backup. Clicking Admin sorts by name and clicking a day groups everyone by the area they hold that day.",
+      "watchFor": [
+        "Select days with Shift and the arrow keys, Shift and click, or Ctrl and click, then press Ctrl+C and Ctrl+V. Approved time off is never changed by a paste.",
+        "Typing a letter, a dash or Backspace with several days selected fills all of them. One Undo takes the whole fill or paste back.",
+        "Clear areas keeps the ticked regular days off. The arrows next to each name set My order.",
+        "Days after the last date the time off file covers are marked past file, so an empty day there does not mean nobody is off."
+      ],
+      "howToSee": [
+        "Type A on Monday for one admin, press Ctrl+C, select Monday to Friday for another admin and press Ctrl+V",
+        "Open Settings and backup and tick Saturday and Sunday for one admin",
+        "Click the Admin heading, then click a day heading, then click it again",
+        "Press the Keys button above the grid to see every shortcut"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1137",
+      "pr": 1137,
+      "issue": 1136,
+      "tool": "schedule",
+      "title": "Mark vacation by hand and hide an asked off request",
+      "summary": "You can now mark any day as vacation yourself, and hide one asked off request so the day looks like any other. Neither one approves anything in the time off file.",
+      "watchFor": [
+        "Press V on a day or on selected days to mark vacation, and V again to take it off. Backspace on one vacation day removes it too.",
+        "Press H on a day with an asked off request to hide it, and H again to show it. A line above the grid counts what you have hidden and has a Show them button.",
+        "Vacation you set yourself counts as off. Clear areas, the Clear brush and Backspace over several days all skip it, and typing over it says to press V first.",
+        "Right click a day, or press Enter on it, for a small menu. Approved time off from the file still wins and cannot be changed."
+      ],
+      "howToSee": [
+        "Click a day with an asked off request and press V, then press Ctrl+Z",
+        "Click the same day and press H, then type A and watch the Cage A count go up by one",
+        "Press Enter on an asked off day to open the menu, then press Escape",
+        "Pick the VAC color above the grid and drag across a few days"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1138",
+      "pr": 1138,
+      "issue": 1076,
+      "alsoCloses": [
+        985
+      ],
+      "tool": "ibno-coder",
+      "title": "Misloads tab for packages with a ZIP that is not on the CSP sheet",
+      "summary": "A package addressed to a ZIP that is not on the CSP sheet now leaves Needs Manual Review and shows in a new Misloads tab in Set aside. The progress bar total also stops changing when you press Show all.",
+      "watchFor": [
+        "This works on the Post Sort report and on the full report. The same package is listed once, wherever it came from.",
+        "The tab hides itself when there are no misloads. Apply 65 comes in the next note.",
+        "A ZIP typed wrong, like 95027 on a Phoenix address, shows here too. Read the city on the row before sending it back.",
+        "A package with no ZIP at all stays in Needs Manual Review."
+      ],
+      "howToSee": [
+        "Load today's Post Sort report",
+        "Open Set aside and click Misloads",
+        "Confirm none of those packages is in Needs Manual Review, even after Show all",
+        "Press Show all and watch the progress bar total stay the same"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1139",
+      "pr": 1139,
+      "issue": 1079,
+      "alsoCloses": [
+        1078,
+        1080,
+        1081,
+        1043
+      ],
+      "tool": "ibno-coder",
+      "title": "Code misloads 65 from the Misloads tab, one at a time or all at once",
+      "summary": "Each misload in the Misloads tab now shows its address, ZIP with city and state, work area and service, and has an Apply 65 button. Apply 65 to all and Copy all sit above the list.",
+      "watchFor": [
+        "A coded misload stays dimmed with Undo until you drop the report again or reload. Then nothing stays coded. The tab number counts only misloads not coded yet.",
+        "An Express row says only that the ZIP is not on the CSP sheet. That sheet may not cover Express, so check it before sending it back.",
+        "Apply 65 to all leaves rows you already coded alone, and a line under the buttons lets you undo that one click.",
+        "In Browse Report, the quick-code button on a misload row now says 65 and codes it the same way, so the row stays in the Misloads tab."
+      ],
+      "howToSee": [
+        "Load today's Post Sort report",
+        "Open Set aside and click Misloads",
+        "Click Apply 65 on one row and watch it dim and the number drop",
+        "Click Apply 65 to all, then Copy all"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
+    },
+    {
+      "id": "pr-1140",
+      "pr": 1140,
+      "issue": 1077,
+      "alsoCloses": [
+        1082
+      ],
+      "tool": "ibno-coder",
+      "title": "Misloads now work with the full report, and 85260 is no longer coded 65 on its own",
+      "summary": "A package for a ZIP that is not on the CSP sheet now leaves Needs Manual Review and shows in the Misloads tab with the full report loaded too, the same as with the Post Sort report. The tool no longer codes 65 on 85260 by itself, so 85260 is listed in Misloads like any other ZIP that is not ours.",
+      "watchFor": [
+        "A package with an off sheet ZIP on an area the report does not flag is still left out of every list, as before.",
+        "ZIPs the station delivers itself, such as 85327, stay in Needs Manual Review.",
+        "Check Ready to Enter after loading the full report. Nothing there should carry a 65 that you did not enter yourself.",
+        "A mistyped ZIP, like 95027 on a Phoenix address, also lands in Misloads. Read the city on the row first."
+      ],
+      "howToSee": [
+        "Load today's full Inbound and Van Scans report",
+        "Open Set aside and click Misloads",
+        "Confirm those packages are not in Needs Manual Review or Other work areas",
+        "Check the Needs Manual Review count and the progress total leave them out",
+        "Look for an 85260 package and confirm it is listed in Misloads with no code on it"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
     }
   ],
   "queueIssue": 1025
