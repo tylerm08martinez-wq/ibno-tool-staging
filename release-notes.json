@@ -1152,6 +1152,28 @@
       "mergedAt": null,
       "commit": null,
       "shippedAt": null
+    },
+    {
+      "id": "pr-1144",
+      "pr": 1144,
+      "issue": 1143,
+      "tool": "ibno-coder",
+      "title": "Packages with ZIP 42085 are dropped from every work list",
+      "summary": "ZIP 42085 is a glitch in the FedEx report, not a real address. A package with that ZIP no longer shows in Needs Manual Review, Ready to Enter or Misloads, and no count includes it, on both the full report and the Post Sort report.",
+      "watchFor": [
+        "Browse Report still lists these packages, because it shows the raw file, but it offers no quick code button for them.",
+        "A package with ZIP 42085 that you parked, filed as 503 or sent to Station earlier stays where you put it, even when a new report shows it with ZIP 42085.",
+        "A real ZIP like 85042 is not affected, only 42085 itself."
+      ],
+      "howToSee": [
+        "Load today's report",
+        "Look up the tracking number of any package whose ZIP reads 42085",
+        "Confirm it is not in Needs Manual Review, Ready to Enter or Misloads",
+        "Open Browse Report, find it, and confirm it has no quick code button"
+      ],
+      "mergedAt": null,
+      "commit": null,
+      "shippedAt": null
     }
   ],
   "queueIssue": 1025

@@ -7011,6 +7011,13 @@ let currentRecurringMap = {}; // recurring map for the report currently on scree
 let autoItems = [];           // data model for Ready-to-Enter rows (incl. 34 override)
 let autoFilter = { codes: [], categories: [] }; // ephemeral view filter for the auto table
 let manualItems = [];         // data model for the unresolved Manual Review rows
+// #1143: the rows of the loaded report whose ZIP is the 42085 glitch. They are
+// NEVER in a work list (manualItems, autoItems, postSortItems stay free of them);
+// they are held here only so the owner's own state about a package, keyed by
+// label (Park, 503 and work-area filing, Station, barcode ticks), is not pruned
+// away as "the report no longer carries it". See glitchSetAsideItems().
+let glitchHeldMain = [];      // main-report shape (IbnoRules.glitchRowsOf)
+let glitchHeldEarly = [];     // Post Sort lane shape (PostSortLane.buildPostSortGlitchRows)
 let currentDayType = 'weekday'; // day banner context, persisted with the session
 
 const defaultSorts = {
@@ -7807,7 +7814,29 @@ function parkSourceFor(label) {
 // Object.assign passes over a ~2,900-row pull. Same recompute class the #673
 // finding 9 lane-split cache fixed, and it uses that cache's exact shape.
 function parkedSourceItems() {
-  return IbnoParked.loadedItems([manualItems, shapedEarlyItems()]);
+  return IbnoParked.loadedItems([manualItems, shapedEarlyItems(), glitchSetAsideItems()]);
+}
+
+// glitchSetAsideItems() -> the held glitch-ZIP rows (#1143) whose label the owner
+// has PARKED or FILED (503 or work area assigned). The one door through which a
+// 42085 row re-enters the page, and it opens only for state he made himself:
+// acceptance 6 of #1143 says a row he parked or filed stays where he put it, and
+// "Park is never auto-cleared". A 42085 row he did not set aside never comes
+// back through here, so it is on no work surface and in no count.
+//
+// Fed to the PRUNE populations and the tabs' source lists, so the stores meet
+// "the report still carries this label" and the tabs can draw the row. Marked
+// `glitchHeld` so a count that is about WORK (the progress bar) can leave it out.
+// Read-only: it never writes a store.
+function glitchSetAsideItems() {
+  if (!glitchHeldMain.length && !glitchHeldEarly.length) return glitchHeldMain;
+  const all = glitchHeldMain.concat(glitchHeldEarly.map(earlyReviewFields));
+  return all
+    .filter(it => isSetAsideLabel(it && it.label))
+    .map(it => Object.assign({}, it, { glitchHeld: true }));
+}
+function isSetAsideLabel(label) {
+  return IbnoParked.isParked(parkedStore, label) || IbnoFiled.isFiled(filedStore, label);
 }
 
 // shapedEarlyItems() -> postSortItems in the field shape buildManualRow,
@@ -7939,7 +7968,7 @@ function reconcileParked() {
 // different things and are free to diverge, and this one shapes the early half
 // only because parkedSourceItems' memoized cache is already paid for.
 function parkedPruneItems() {
-  return IbnoParked.loadedItems([manualItems, shapedEarlyItems(), resolvedItems, autoItems]);
+  return IbnoParked.loadedItems([manualItems, shapedEarlyItems(), resolvedItems, autoItems, glitchSetAsideItems()]);
 }
 
 // parkedLiveItems() -> every row the page HOLDS IN MEMORY right now, whichever
@@ -7953,7 +7982,7 @@ function parkedPruneItems() {
 // reason that one's comment gives: the two are free to diverge, and collapsing
 // them would make the next narrowing of either silently a narrowing of both.
 function parkedLiveItems() {
-  return IbnoParked.loadedItems([manualItems, shapedEarlyItems(), resolvedItems, autoItems]);
+  return IbnoParked.loadedItems([manualItems, shapedEarlyItems(), resolvedItems, autoItems, glitchSetAsideItems()]);
 }
 
 // parkedDrawItems() -> WHICH PARKED ROWS CAN I DRAW, and offer an Unpark on
@@ -9515,7 +9544,7 @@ function copyAllMisloads() {
 // dedupes FIRST-OCCURRENCE-WINS in the order given, so a label more than one
 // list carries still resolves to exactly the item it resolved to before.
 function filed503SourceItems() {
-  return IbnoParked.loadedItems([manualItems, shapedEarlyItems(), resolvedItems]);
+  return IbnoParked.loadedItems([manualItems, shapedEarlyItems(), resolvedItems, glitchSetAsideItems()]);
 }
 
 // ─── THE 503s TAB'S TWO GROUPS (#944) ───────────────────────────────────────
@@ -9592,6 +9621,11 @@ function laneWorkable503Labels() {
   const add = it => { if (it && it.label) set.add(it.label); };
   manualItems.forEach(add);
   postSortItems.forEach(add);
+  // A held glitch-ZIP row (#1143) is deliberately in neither list above, but on
+  // main the same parked/filed row IS in manualItems or postSortItems, so it is
+  // workable and the stranded arm of handed503Predicate must not fire for it.
+  // Reads module arrays and two stores only, never a predicate: no recursion.
+  glitchSetAsideItems().forEach(add);
   return set;
 }
 
@@ -13079,7 +13113,7 @@ function updateManualSectionVisibility() {
 
 const SESSION_KEY = 'ibno_session';
 
-function renderResults({ auto, manual, dayType }, recurringMap = {}) {
+function renderResults({ auto, manual, dayType, glitch }, recurringMap = {}) {
   currentRecurringMap = recurringMap || {};
   // #1043, NO CARRY-OVER: every main-report load (a fresh drop, a merge, a re-run,
   // a session restore) rebuilds the Misloads tab purely from the report in front
@@ -13090,6 +13124,28 @@ function renderResults({ auto, manual, dayType }, recurringMap = {}) {
   // batch the result line's Undo points at.
   resolvedItems = PostSortLane.withoutMisloadRecords(resolvedItems);
   misloadsLastBulk = null;
+  // #1143: ZIP 42085 is a FedEx report glitch. processRows already drops those
+  // rows on a fresh load; this is the same one predicate (ZipIspBeltLib) applied
+  // to a session restored from before the rule, so an old snapshot cannot bring
+  // a glitch row back into Needs Manual Review or Ready to Enter. Stores
+  // (Parked, 503s, coded records) are not touched here.
+  // Reassigned here, not just stored, because the counts below read `auto` and
+  // `manual` directly.
+  //
+  // The glitch rows are HELD, not discarded (see glitchSetAsideItems): the rows
+  // the caller read off the report (`glitch`), plus any a restored session
+  // carried inside its stored lists. They stay out of every work list below.
+  const heldNow = (Array.isArray(glitch) ? glitch : [])
+    .concat(ZipIspBeltLib.glitchZipRows(auto), ZipIspBeltLib.glitchZipRows(manual));
+  const heldSeen = Object.create(null);
+  glitchHeldMain = heldNow.filter(it => {
+    const l = it && it.label;
+    if (!l || heldSeen[l]) return false;
+    heldSeen[l] = true;
+    return true;
+  });
+  auto = ZipIspBeltLib.withoutGlitchZipRows(auto);
+  manual = ZipIspBeltLib.withoutGlitchZipRows(manual);
   autoItems = auto;           // hold the model; exports + overrides read/write here
   manualItems = manual;       // hold the unresolved manual rows for persistence
   currentDayType = dayType;
@@ -13279,7 +13335,11 @@ function persistSession() {
   // Session shape lives in lib/ibno-session.js; this page only does storage I/O.
   const snap = IbnoSession.snapshot({
     auto: autoItems,
-    manual: manualItems,
+    // #1143: the glitch rows the owner has set aside ride in the stored list so
+    // an F5 restore (which prunes against the restored report) still carries
+    // their labels. renderResults splits them back out; they are never working
+    // rows. Only the set-aside ones, so the stored session stays small.
+    manual: manualItems.concat(glitchHeldMain.filter(it => isSetAsideLabel(it.label))),
     resolved: resolvedItems,
     dayType: currentDayType,
     recurring: currentRecurringMap,
@@ -14758,8 +14818,15 @@ function ingestStationDrop(opts) {
   // parsed rows the same way mainReportScanBarcodeMap does; its own comment
   // carries the argument.
   const mainRows = o.postSort ? [] : IbnoRules.mainReportStationRows(lastRows, stationConfig);
+  // #1143: a glitch-ZIP row is not in the lane, so on the path where ABSENCE
+  // means delivered it would be inferred delivered. A glitch row the Station
+  // store already carries is still on the report, so it is offered as present.
+  // Never one the store does not hold: that would ADD a 42085 row to the pane.
+  const glitchStation = o.postSort
+    ? glitchHeldEarly.map(earlyReviewFields).filter(it => StationStore.has(stationStore, it.label) && isStationRow(it))
+    : [];
   const rows = o.postSort
-    ? loaded.filter(isStationRow)
+    ? IbnoParked.loadedItems([loaded.filter(isStationRow), glitchStation])
     : IbnoParked.loadedItems([mainRows, loaded.filter(isStationRow)]);
   // THE `still-open` OVERRIDE RETIRES ON REAPPEARANCE (#1000, spec #996 story
   // 19), and it is retired BEFORE the ingest below reads it as a veto — the
@@ -15799,7 +15866,7 @@ function newSinceTagHtml(item) {
 // CODED row moves out of manualItems and a filed row that Tyler then codes must
 // not fall out of the tab it is sitting in.
 function filedSourceItems() {
-  return IbnoParked.loadedItems([manualItems, shapedEarlyItems(), resolvedItems]);
+  return IbnoParked.loadedItems([manualItems, shapedEarlyItems(), resolvedItems, glitchSetAsideItems()]);
 }
 
 // assignedRows() -> what the ✅ Work area assigned TAB shows.
@@ -17944,7 +18011,9 @@ function persistEarlyLane() {
   // (snapshotEarly). Nothing here passes a device date, and nothing here may
   // start: this lane is worked across midnight every night, and a calendar
   // stamp would delete it at 00:05 mid-sort.
-  const snap = PostSortLane.snapshotEarly(postSortItems);
+  // #1143: the glitch rows the owner has set aside ride in the stored lane so a
+  // refresh keeps them (restoreEarlyGlitch splits them back out).
+  const snap = PostSortLane.snapshotEarly(postSortItems.concat(glitchHeldEarly.filter(it => isSetAsideLabel(it.label))));
   // Free the previous payload's bytes before writing the new one, same reason
   // persistSession() does: replacing a key in a near-full store needs room for
   // both copies at once, so an in-place overwrite can fail even when the new
@@ -18044,6 +18113,8 @@ function restoreEarlyLane(knownSortDay) {
     { sortDay: knownSortDay || currentSortDay });
   if (!items.length) { toolStorage.remove(POST_SORT_KEY); return false; }
   postSortItems = items;
+  glitchHeldEarly = PostSortLane.restoreEarlyGlitch(toolStorage.get(POST_SORT_KEY, null),
+    { sortDay: knownSortDay || currentSortDay });
   // The restored rows carry their own INBOUND_DATE, so the sort day comes back
   // with them and the typed Goes To areas stay scoped to it (#695) — the same
   // reason restoreSession() reads the day off items rather than off a file.
@@ -18468,6 +18539,9 @@ function ingestPostSortRecords(records, fileName) {
   // best-effort and must never block or delay the lane rendering below.
   ingestArchiveRecords(records);
   postSortItems = PostSortLane.buildPostSortLane(records);
+  // #1143: the glitch-ZIP rows the lane just dropped, held for the owner's own
+  // state only (see glitchSetAsideItems), never a work row.
+  glitchHeldEarly = PostSortLane.buildPostSortGlitchRows(records);
   // Under ADR 0021 the Post Sort report IS the loaded report, so it sets the
   // sort day exactly like a main-report load does (#695). Its rows carry
   // INBOUND_DATE too, and this runs before renderEarlyLane below.
@@ -18478,7 +18552,10 @@ function ingestPostSortRecords(records, fileName) {
   // Prune the tick list to THIS report's labels. Without it the list would
   // accumulate every tracking number ever ticked, and yesterday's ticks would
   // show against today's lane the moment a label repeated across reports.
-  barcodeDoneStore = BarcodeDone.prune(barcodeDoneStore, postSortItems.map(it => it.label));
+  // #1143: a glitch row is not in the lane but IS in the report, so a tick or a
+  // resolved barcode made on it meets "the report carries this label" and stays.
+  const glitchEarlyLabels = glitchHeldEarly.map(it => it.label);
+  barcodeDoneStore = BarcodeDone.prune(barcodeDoneStore, postSortItems.map(it => it.label).concat(glitchEarlyLabels));
   persistBarcodeDone();
   // #741: the resolved barcodes come back. THE ORDER OF THE NEXT THREE LINES IS
   // THE FEATURE, and it is stated here rather than left to be inferred:
@@ -18505,7 +18582,7 @@ function ingestPostSortRecords(records, fileName) {
   // The ORDER still matters and is still the feature: step 1 before step 2 is
   // what keeps the prune from being a dead guard running after the restore it
   // bounds, and that one IS live on every re-drop.
-  resolvedBarcodeStore = SortDay.dayStorePruneTo(resolvedBarcodeStore, postSortItems.map(it => it.label));
+  resolvedBarcodeStore = SortDay.dayStorePruneTo(resolvedBarcodeStore, postSortItems.map(it => it.label).concat(glitchEarlyLabels));
   postSortItems = BarcodeStore.applyStored(postSortItems,
     SortDay.serializeDayStore(resolvedBarcodeStore).items);
   postSortItems = PostSortLane.applyBarcodeLookup(postSortItems, null, mainReportBarcodeMap());
@@ -18708,6 +18785,7 @@ function clearPostSortLane() {
   postSortSeq++; // invalidate any in-flight read from before this clear
   postSortBarcodeSeq++; // and any in-flight barcode-lookup read too
   postSortItems = [];
+  glitchHeldEarly = [];   // #1143: held rows belong to the lane being cleared
   // Reset the fold and the selection with the data they describe (code
   // review, 2026-08-13). postSortShowAll's own declaration says the folded
   // view is the correct default for every load, but nothing enforced it:
@@ -20124,7 +20202,9 @@ function workProgressLabels() {
   // Parked rows stay OUT, unchanged: a parked row is deferred work with no
   // area, so it is neither worked nor scanned and would only ever drag the bar
   // down against a package Tyler has deliberately set down.
-  assignedRows().forEach(it => add(it.label));
+  // #1143: a glitch-ZIP row the owner filed is drawn in its tab but is not work
+  // the bar counts (it is in no count, #1143 item 4).
+  assignedRows().filter(it => !it.glitchHeld).forEach(it => add(it.label));
   // AND THE HANDED-OFF 503 ROWS, WHICH assignedRows() NO LONGER CARRIES (#944).
   //
   // Decision 2 takes a barcode-confirmed 503 row out of the ✅ Work area
@@ -20143,7 +20223,7 @@ function workProgressLabels() {
   // rows only, so they were outside it before #944 and are outside it after.
   // Adding them here would inflate a total by rows the bar has never counted,
   // which is the same ratio hazard pointing the other way.
-  barcodeFiled503Rows().forEach(it => add(it.label));
+  barcodeFiled503Rows().filter(it => !it.glitchHeld).forEach(it => add(it.label));
   return labels;
 }
 function workLabels() { return workRows().map(tr => tr.getAttribute('data-label')); }
@@ -23732,7 +23812,7 @@ function applySnapshot(rows, opts) {
   lastRows = snap.rows;
   lastRecurring = snap.recurring;
   refreshRawViewerIfOpen(); // #388: keep the Browse Report viewer on the new load
-  renderResults(snap, snap.recurring);
+  renderResults(Object.assign({}, snap, { glitch: IbnoRules.glitchRowsOf(snap.rows) }), snap.recurring);
   return snap;
 }
 
@@ -23757,7 +23837,7 @@ function rerunRules() {
   // skips applySnapshot: history/archive are unchanged since lastRows itself
   // didn't change.
   const results = IbnoSession.rerun(lastRows);
-  renderResults(results, lastRecurring);
+  renderResults(Object.assign({}, results, { glitch: IbnoRules.glitchRowsOf(lastRows) }), lastRecurring);
 }
 
 // ─── DAY EXPORT (#794, PRD #790, ADR-0023 item 4) ────────────────────────────
@@ -24921,6 +25001,7 @@ function resetApp() {
   misloadsLastBulk = null;   // #1081: the Apply 65 to all result line is about the report that just left
   autoItems = [];
   manualItems = [];
+  glitchHeldMain = [];   // #1143: held rows belong to the report that just left
   autoFilter = { codes: [], categories: [] };
   // Issue #662/#669 + #673 review finding 1: a lane's section can stay
   // visible through a "Load New File" reset — #manual-section always is (see
